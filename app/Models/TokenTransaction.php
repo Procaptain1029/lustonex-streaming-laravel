@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class TokenTransaction extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'amount',
+        'type',
+        'description',
+        'balance_after',
+        'ip_address',
+    ];
+
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}

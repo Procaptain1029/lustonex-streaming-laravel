@@ -1,0 +1,17 @@
+import { defineConfig } from 'vite';
+import laravel from 'laravel-vite-plugin';
+
+export default defineConfig({
+    plugins: [
+        laravel({
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                'resources/css/premium-design.css',
+                'resources/css/icons.css',
+                'resources/css/sh-search-premium.css',
+            ],
+            refresh: true,
+        }),
+    ],
+});

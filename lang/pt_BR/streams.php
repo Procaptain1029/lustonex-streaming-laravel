@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'live_badge' => 'AO VIVO',
+    'viewers' => ':count espectadores',
+    'is_live' => ':name está ao vivo',
+    'connecting' => 'Conectando à transmissão...',
+    'subscribers' => ':count assinantes',
+    'started_at' => 'Desde :date',
+    'chat' => 'Chat',
+    'tokens' => 'Tokens',
+    'token_count' => ':count Tokens',
+    'send_tokens' => 'Enviar Tokens',
+    'message_placeholder' => 'Escreva uma mensagem opcional para :name...',
+    'your_tokens' => 'Seus Tokens',
+    'login_prompt' => 'Faça login para enviar tokens e apoiar :name',
+    'login_prompt_chat' => 'Faça login para participar do chat',
+    'login_btn' => 'Entrar',
+    'chat_placeholder' => 'Escreva uma mensagem para :name...',
+    'send_btn' => 'Enviar',
+    'new_tip' => 'Nova gorjeta!',
+    'from' => 'de',
+    'tokens_sent' => 'Tokens Enviados!',
+    'select_tokens_alert' => 'Por favor, selecione uma quantidade de tokens',
+    'sending' => 'Enviando...',
+];
