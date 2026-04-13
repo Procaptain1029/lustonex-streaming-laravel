@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Model;
 use App\Http\Controllers\Controller;
 use App\Models\Stream;
 use App\Models\ActivityLog;
+use App\Events\NewChatMessage;
 use App\Events\StreamStarted;
 use App\Events\StreamEnded;
 use Illuminate\Http\Request;
@@ -85,7 +86,7 @@ class StreamController extends Controller
             'status' => 'live', 
             'stream_key' => $streamKey,
             'rtmp_url' => "rtmp://127.0.0.1:1935/live/{$streamKey}",
-            'playback_url' => "/hls/live/{$streamKey}.m3u8",
+            'playback_url' => "/hls/live/{$streamKey}/index.m3u8",
             'started_at' => now() 
         ]);
 
@@ -344,18 +345,22 @@ class StreamController extends Controller
             'is_visible' => true,
         ]);
 
+        $message->load('user');
+        event(new NewChatMessage($message));
+
         return response()->json([
             'success' => true,
             'message' => __('admin.flash.stream.message_sent'),
             'chat_message' => [
                 'id' => $message->id,
                 'user' => [
-                    'name' => auth()->user()->name,
-                    'is_model' => true
+                    'id' => $message->user->id,
+                    'name' => $message->user->name,
+                    'is_model' => true,
                 ],
                 'message' => $message->message,
-                'created_at' => $message->created_at->format('H:i')
-            ]
+                'created_at' => $message->created_at->toISOString(),
+            ],
         ]);
     }
 

@@ -33,7 +33,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('achievement_id')->constrained()->onDelete('cascade');
-            $table->timestamp('unlocked_at');
+            $table->timestamp('unlocked_at')->nullable();
             $table->timestamps();
             
             $table->unique(['user_id', 'achievement_id']);

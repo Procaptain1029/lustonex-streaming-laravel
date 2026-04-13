@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('viewer_id')->nullable()->constrained('users')->onDelete('set null');
             $table->string('ip_address', 45);
             $table->string('user_agent')->nullable();
-            $table->timestamp('viewed_at');
+            $table->timestamp('viewed_at')->nullable();
             
             // Indexes for performance
             $table->index(['profile_id', 'viewed_at']);

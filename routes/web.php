@@ -311,6 +311,10 @@ Route::post('/stream/{stream}/chat', [StreamViewController::class, 'sendMessage'
     ->middleware('auth')
     ->name('streams.chat');
 
+Route::get('/stream/{stream}/chat/poll', [StreamViewController::class, 'pollChat'])
+    ->middleware(['auth', 'subscription'])
+    ->name('streams.chat.poll');
+
 Route::post('/stream/{stream}/tip', [StreamViewController::class, 'sendTip'])
     ->middleware('auth')
     ->name('streams.tip');

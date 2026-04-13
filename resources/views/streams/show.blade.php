@@ -24,6 +24,17 @@
     
     <link rel="stylesheet" href="{{ asset('css/premium-design.css') }}">
 
+    @auth
+        <script type="application/json" id="stream-broadcast-config">
+            @json([
+                'streamId' => $stream->id,
+                'userId' => auth()->id(),
+                'pollUrl' => route('streams.chat.poll', $stream),
+                'lastMessageId' => $chatMessages->max('id') ?? 0,
+            ])
+        </script>
+    @endauth
+
     <style>
         @if(request('mode') === 'moderation')
             .stream-title-section,
@@ -109,7 +120,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-image: url('{{ $stream->user->profile->cover_image ?? asset("images/default-cover.jpg") }}');
+            background-image: url('{{ $stream->user->profile->cover_image_url }}');
             background-size: cover;
             background-position: center;
             filter: blur(20px) brightness(0.3);
@@ -737,8 +748,9 @@
                     @endif
 
                     <div class="model-info">
-                        <img src="{{ $stream->user->profile->avatar_url ?? asset('images/default-avatar.png') }}"
-                            alt="{{ $stream->user->name }}" class="model-avatar">
+                        <img src="{{ $stream->user->profile->avatar_url }}"
+                            alt="{{ $stream->user->name }}" class="model-avatar"
+                            onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'">
                         <div class="model-details">
                             <h3>{{ $stream->user->name }}</h3>
                             <div class="model-stats">
@@ -775,7 +787,7 @@
                     
                     <div id="chat-section" class="chat-messages">
                         @foreach($chatMessages as $message)
-                            <div class="chat-message">
+                            <div class="chat-message" data-message-id="{{ $message->id }}">
                                 <div class="chat-message-header">
                                     <span class="chat-username">{{ $message->user->name }}</span>
                                     <span class="chat-time">{{ $message->created_at->format('H:i') }}</span>
@@ -980,18 +992,20 @@
                     method: 'POST',
                     body: formData,
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json',
                     }
                 })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.success) {
+                        if (data.success && data.message) {
                             messageInput.value = '';
-                            // Add message to chat immediately for better UX
+                            const m = data.message;
                             addChatMessage({
-                                user: { name: '{{ auth()->user()->name ?? __("Tú") }}' },
-                                message: message,
-                                created_at: new Date()
+                                id: m.id,
+                                user: m.user ? { name: m.user.name } : { name: '' },
+                                message: m.message,
+                                created_at: m.created_at,
                             });
                         }
                     })
@@ -1072,12 +1086,18 @@
             }
 
             // Initialize HLS player
-            const streamUrl = '{{ asset("hls/live/" . $stream->user->profile->stream_key . ".m3u8") }}';
+            const streamUrl = '{{ asset("hls/live/" . $stream->user->profile->stream_key . "/index.m3u8") }}';
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
                     enableWorker: true,
                     lowLatencyMode: true,
+                    liveSyncDurationCount: 2,
+                    liveMaxLatencyDurationCount: 4,
+                    maxBufferLength: 3,
+                    maxMaxBufferLength: 6,
+                    backBufferLength: 10,
+                    highBufferWatchdogPeriod: 1,
                 });
                 hls.loadSource(streamUrl);
                 hls.attachMedia(remoteVideo);
@@ -1118,30 +1138,71 @@
 
         function updateViewerCount() {
             const viewerCount = document.getElementById('viewer-count');
-            if (viewerCount) {
-                const currentCount = parseInt(viewerCount.textContent);
-                const newCount = currentCount + Math.floor(Math.random() * 3) - 1;
-                viewerCount.textContent = Math.max(0, newCount);
+            if (!viewerCount) return;
+            fetch('{{ url('/api/stream/' . $stream->id . '/info') }}', {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            })
+                .then((r) => (r.ok ? r.json() : Promise.reject()))
+                .then((data) => {
+                    if (data && data.viewers_count != null) {
+                        viewerCount.textContent = data.viewers_count;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatChatTime(createdAt) {
+            const d = createdAt ? new Date(createdAt) : new Date();
+            if (Number.isNaN(d.getTime())) {
+                return new Date().toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' });
             }
+            return d.toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' });
         }
 
         function addChatMessage(message) {
             const chatSection = document.getElementById('chat-section');
             if (!chatSection) return;
 
+            const mid = message.id != null && message.id !== '' ? String(message.id) : null;
+            if (mid && chatSection.querySelector('.chat-message[data-message-id="' + mid + '"]')) {
+                return;
+            }
+
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
-            messageDiv.innerHTML = `
-                <div class="chat-message-header">
-                    <span class="chat-username">${message.user.name}</span>
-                    <span class="chat-time">${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-                <div class="chat-text">${message.message}</div>
-            `;
+            if (mid) {
+                messageDiv.setAttribute('data-message-id', mid);
+            }
+            const userName = message.user && message.user.name ? message.user.name : '';
+            const body = message.message != null ? String(message.message) : '';
+            messageDiv.innerHTML =
+                '<div class="chat-message-header">' +
+                '<span class="chat-username">' + escapeHtml(userName) + '</span>' +
+                '<span class="chat-time">' + escapeHtml(formatChatTime(message.created_at)) + '</span>' +
+                '</div>' +
+                '<div class="chat-text">' + escapeHtml(body) + '</div>';
 
             chatSection.appendChild(messageDiv);
             chatSection.scrollTop = chatSection.scrollHeight;
         }
+
+        window.appendStreamChatFromBroadcast = function (payload) {
+            if (!payload || payload.id == null) return;
+            addChatMessage({
+                id: payload.id,
+                user: payload.user || { name: '' },
+                message: payload.message,
+                created_at: payload.created_at,
+            });
+        };
 
         function showTipNotification(tip) {
             const notification = document.createElement('div');
@@ -1174,6 +1235,8 @@
         // Initialize
         scrollChatToBottom();
     </script>
+
+    @vite(['resources/js/stream-viewer.js'])
 </body>
 
 </html>

@@ -304,8 +304,9 @@
         </div>
 
         <div class="hero-avatar-area">
-            <img src="{{ $model->profile->avatar_url ?? asset('images/default-avatar.jpg') }}"
-                class="profile-avatar-premium" onclick="openPhotoModal('{{ $model->profile->avatar_url ?? asset('images/default-avatar.jpg') }}', null, false, 0)" style="cursor: pointer;">
+            <img src="{{ $model->profile->avatar_url }}"
+                class="profile-avatar-premium" onclick="openPhotoModal('{{ $model->profile->avatar_url }}', null, false, 0)" style="cursor: pointer;"
+                onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'">
             @if($model->progress)
                 
             @endif

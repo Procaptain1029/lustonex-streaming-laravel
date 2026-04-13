@@ -16,20 +16,23 @@
                    autocomplete="off">
             
             <div class="sh-search-actions">
-                <button class="sh-search-btn-clear" id="sh-search-clear-{{ $searchId }}" title="{{ __('components.search_models.clear_title') }}">
+                <button type="button" class="sh-search-btn-clear" id="sh-search-clear-{{ $searchId }}" aria-label="{{ __('components.search_models.clear_title') }}">
                     <i class="fas fa-times-circle"></i>
                 </button>
                 <div class="sh-search-divider"></div>
-                <button class="sh-search-btn-filters" id="sh-search-filters-toggle-{{ $searchId }}" title="{{ __('components.search_models.filters_title') }}">
-                    <i class="fas fa-sliders-h"></i>
-                    <span class="desktop-only-text">{{ __('components.search_models.filters_text') }}</span>
+                <button type="button" class="sh-search-btn-filters" id="sh-search-filters-toggle-{{ $searchId }}" aria-label="{{ __('components.search_models.filters_title') }}">
+                    <span class="sh-search-filters-inner">
+                        <i class="fas fa-sliders-h sh-search-filters-icon" aria-hidden="true"></i>
+                        <span class="sh-search-filters-label">{{ __('components.search_models.filters_text') }}</span>
+                    </span>
                 </button>
             </div>
         </div>
     </div>
 
     
-    <div class="sh-search-overlay" id="sh-search-filters-panel-{{ $searchId }}">
+    {{-- Portal to body via JS on load: header .header-center uses transform, which breaks position:fixed for descendants --}}
+    <div class="sh-search-overlay" id="sh-search-filters-panel-{{ $searchId }}" hidden aria-hidden="true">
         <div class="sh-search-window">
             <div class="sh-search-window-header">
                 <div class="sh-search-window-title">
@@ -177,17 +180,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyBtn = document.getElementById(`sh-search-apply-filters-${searchId}`);
     const input = document.getElementById(`sh-search-input-${searchId}`);
 
+    if (!panel) return;
+
+    // Keep overlay under document.body from first paint so position:fixed is viewport-relative
+    // (.header-center uses transform, which creates a fixed-position containing block)
+    if (panel.parentElement !== document.body) {
+        document.body.appendChild(panel);
+    }
+    panel.removeAttribute('hidden');
+    panel.style.display = 'none';
+    panel.setAttribute('aria-hidden', 'true');
+
     // Toggle logic
     const openPanel = (e) => {
         if(e) e.preventDefault();
-        // Move to body to avoid header transformations/overflows
-        document.body.appendChild(panel);
+        if (panel.parentElement !== document.body) {
+            document.body.appendChild(panel);
+        }
         panel.style.display = 'flex';
+        panel.setAttribute('aria-hidden', 'false');
         setTimeout(() => panel.classList.add('active'), 10);
         document.body.style.overflow = 'hidden';
     };
 
-    if (toggleBtn && panel) {
+    if (toggleBtn) {
         toggleBtn.addEventListener('click', openPanel);
     }
 
@@ -196,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.classList.remove('active');
         setTimeout(() => {
             panel.style.display = 'none';
+            panel.setAttribute('aria-hidden', 'true');
         }, 300);
         document.body.style.overflow = '';
     };
@@ -212,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear and input logic
     if (input && clearBtn) {
         input.addEventListener('input', () => {
-            clearBtn.style.display = input.value ? 'block' : 'none';
+            clearBtn.style.display = input.value ? 'inline-flex' : 'none';
         });
 
         clearBtn.addEventListener('click', () => {

@@ -101,7 +101,7 @@ class Profile extends Model
     public function getAvatarUrlAttribute()
     {
         if (!$this->avatar) {
-            return asset('avatar.jpg'); 
+            return asset('images/placeholder-avatar.svg');
         }
         
         
@@ -121,7 +121,7 @@ class Profile extends Model
     public function getCoverImageUrlAttribute()
     {
         if (!$this->cover_image) {
-            return null;
+            return asset('images/placeholder-cover.svg');
         }
         
         if (str_starts_with($this->cover_image, 'images/')) {
@@ -447,6 +447,6 @@ class Profile extends Model
 
     public function getHlsUrl()
     {
-        return "/hls/{$this->stream_key}.m3u8";
+        return "/hls/live/{$this->stream_key}/index.m3u8";
     }
 }

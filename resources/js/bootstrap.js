@@ -8,25 +8,43 @@ import axios from 'axios';
 window.axios = axios;
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+window.axios.defaults.withCredentials = true;
 
 /**
- * Echo exposes an expressive API for subscribing to channels and listening
- * for events that are broadcast by Laravel. Echo and event broadcasting
- * allows your team to easily build robust real-time web applications.
+ * Laravel Echo + Pusher (when VITE_PUSHER_APP_KEY is set).
+ * Used by stream viewer chat and any page that imports this bootstrap.
  */
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
 
-// import Echo from 'laravel-echo';
+window.Pusher = Pusher;
 
-// import Pusher from 'pusher-js';
-// window.Pusher = Pusher;
+const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
 
-// window.Echo = new Echo({
-//     broadcaster: 'pusher',
-//     key: import.meta.env.VITE_PUSHER_APP_KEY,
-//     cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
-//     wsHost: import.meta.env.VITE_PUSHER_HOST ? import.meta.env.VITE_PUSHER_HOST : `ws-${import.meta.env.VITE_PUSHER_APP_CLUSTER}.pusher.com`,
-//     wsPort: import.meta.env.VITE_PUSHER_PORT ?? 80,
-//     wssPort: import.meta.env.VITE_PUSHER_PORT ?? 443,
-//     forceTLS: (import.meta.env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
-//     enabledTransports: ['ws', 'wss'],
-// });
+if (pusherKey) {
+    const scheme = import.meta.env.VITE_PUSHER_SCHEME ?? 'https';
+    const useTls = scheme === 'https';
+    const customHost = import.meta.env.VITE_PUSHER_HOST;
+
+    const echoConfig = {
+        broadcaster: 'pusher',
+        key: pusherKey,
+        cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
+        forceTLS: useTls,
+        encrypted: useTls,
+        disableStats: true,
+        enabledTransports: ['ws', 'wss'],
+    };
+
+    if (customHost) {
+        echoConfig.wsHost = customHost;
+        echoConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT) || 80;
+        echoConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT) || 1935;
+        echoConfig.forceTLS = useTls;
+        echoConfig.encrypted = useTls;
+    }
+
+    window.Echo = new Echo(echoConfig);
+} else {
+    window.Echo = null;
+}

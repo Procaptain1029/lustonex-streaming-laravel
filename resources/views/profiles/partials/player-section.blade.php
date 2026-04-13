@@ -57,7 +57,7 @@
                 @if($model->profile && $model->profile->is_streaming)
                     @php
                         // URL del HLS servido por Laravel desde public/hls/live/
-                        $hlsUrl = asset('hls/live/' . $model->profile->stream_key . '.m3u8');
+                        $hlsUrl = asset('hls/live/' . $model->profile->stream_key . '/index.m3u8');
                     @endphp
                     <video id="hlsProfilePlayer" class="w-full h-full object-contain" data-url="{{ $hlsUrl }}"
                         autoplay muted playsinline></video>
@@ -92,7 +92,7 @@
                     </div>
                 @else
                     <div class="offline-placeholder"
-                        style="background: url('{{ $model->profile->cover_image_url ?? asset('images/default-cover.jpg') }}') no-repeat center center/cover;">
+                        style="background: url('{{ $model->profile->cover_image_url }}') no-repeat center center/cover;">
                         
                         <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);">
                         </div>
@@ -101,7 +101,8 @@
                             style="position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px; height: 100%; justify-content: center;">
                             
                             <div style="padding: 4px; border: 2px solid rgba(255,255,255,0.1); border-radius: 50%;">
-                                <img src="{{ $model->profile->avatar_url ?? asset('images/default-avatar.jpg') }}"
+                                <img src="{{ $model->profile->avatar_url }}"
+                                    onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'"
                                     style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #fff;">
                             </div>
 

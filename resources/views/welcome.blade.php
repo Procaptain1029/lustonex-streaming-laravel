@@ -242,7 +242,7 @@
                     <a href="{{ route('profiles.show', ['model' => $model->id]) }}" class="sh-model-card">
                         <div class="sh-card-image-wrapper">
                             @if($model->profile && $model->profile->avatar)
-                                <img src="{{ $model->profile->avatar_url }}" alt="{{ $model->name }}" class="sh-card-image" loading="lazy" decoding="async">
+                                <img src="{{ $model->profile->avatar_url }}" alt="{{ $model->name }}" class="sh-card-image" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'">
                             @else
                                 <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #1a1a1a;">
                                     <i class="fas fa-user" style="font-size: 48px; color: rgba(255,255,255,0.1);"></i>
@@ -304,7 +304,7 @@
                     <a href="{{ route('profiles.show', ['model' => $model->id]) }}" class="sh-model-card">
                         <div class="sh-card-image-wrapper">
                             @if($model->profile && $model->profile->avatar)
-                                <img src="{{ $model->profile->avatar_url }}" alt="{{ $model->name }}" class="sh-card-image" loading="lazy" decoding="async">
+                                <img src="{{ $model->profile->avatar_url }}" alt="{{ $model->name }}" class="sh-card-image" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'">
                             @else
                                 <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #1a1a1a;">
                                     <i class="fas fa-user" style="font-size: 48px; color: rgba(255,255,255,0.1);"></i>
@@ -364,7 +364,7 @@
                     <a href="{{ route('profiles.show', ['model' => $model->id]) }}" class="sh-model-card">
                         <div class="sh-card-image-wrapper">
                             @if($model->profile && $model->profile->avatar)
-                                <img src="{{ $model->profile->avatar_url }}" alt="{{ $model->name }}" class="sh-card-image" loading="lazy" decoding="async">
+                                <img src="{{ $model->profile->avatar_url }}" alt="{{ $model->name }}" class="sh-card-image" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'">
                             @else
                                 <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #1a1a1a;">
                                     <i class="fas fa-user" style="font-size: 48px; color: rgba(255,255,255,0.1);"></i>

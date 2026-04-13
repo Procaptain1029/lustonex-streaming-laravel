@@ -499,7 +499,7 @@
 
                     @if($stream->status === 'live' || $stream->status === 'paused')
                         <video id="hlsMainPlayer" controls autoplay muted playsinline
-                            data-url="{{ asset('hls/live/' . $stream->stream_key . '.m3u8') }}">
+                            data-url="{{ asset('hls/live/' . $stream->stream_key . '/index.m3u8') }}">
                         </video>
                     @else
                         <div class="empty-state">
@@ -675,9 +675,14 @@
                 if (hls) hls.destroy();
                 hls = new Hls({
                     lowLatencyMode: true,
-                    backBufferLength: 60,
+                    liveSyncDurationCount: 2,
+                    liveMaxLatencyDurationCount: 4,
+                    maxBufferLength: 3,
+                    maxMaxBufferLength: 6,
+                    backBufferLength: 10,
+                    highBufferWatchdogPeriod: 1,
                     manifestLoadingMaxRetry: 10,
-                    manifestLoadingRetryDelay: 1000
+                    manifestLoadingRetryDelay: 1000,
                 });
                 hls.loadSource(url);
                 hls.attachMedia(video);

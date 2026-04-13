@@ -17,13 +17,22 @@ class HLSStreamingManager {
             debug: false,
             enableWorker: true,
             lowLatencyMode: true,
-            backBufferLength: 90,
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
-            liveSyncDurationCount: 3,
-            liveMaxLatencyDurationCount: 5,
+
+            // LL-HLS: Tuned for 2-4s latency with 1s segments
+            liveSyncDurationCount: 2,         // Sync 2 segments behind live edge
+            liveMaxLatencyDurationCount: 4,   // Max 4 segments behind before catch-up
+            maxBufferLength: 3,               // Max 3s forward buffer
+            maxMaxBufferLength: 6,            // Absolute max 6s buffer
+            backBufferLength: 10,             // Keep 10s back buffer
             liveDurationInfinity: true,
-            highBufferWatchdogPeriod: 2
+            highBufferWatchdogPeriod: 1,      // Check buffer every 1s
+
+            // Network tuning for fast segment loading
+            manifestLoadingTimeOut: 5000,
+            manifestLoadingMaxRetry: 3,
+            levelLoadingTimeOut: 5000,
+            fragLoadingTimeOut: 5000,
+            fragLoadingMaxRetry: 3,
         };
 
         this.loadHLSLibrary();
@@ -359,7 +368,7 @@ class HLSStreamingManager {
 
             // Inicializar reproductor HLS
             this.video = videoElement;
-            await this.initHLSPlayer(streamInfo.hls_url || `/hls/live/${streamInfo.stream_key}.m3u8`);
+            await this.initHLSPlayer(streamInfo.hls_url || `/hls/live/${streamInfo.stream_key}/index.m3u8`);
 
             // Notificar al servidor
             await this.notifyJoinViewer(streamId);

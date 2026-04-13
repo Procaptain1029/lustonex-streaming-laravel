@@ -373,7 +373,7 @@
                             <div class="mod-visual">
                                 <video id="player-{{ $stream->id }}" class="mod-video" muted autoplay playsinline loop
                                     poster="{{ $stream->thumbnail ? asset('storage/' . $stream->thumbnail) : '' }}"
-                                    data-url="{{ asset('hls/live/' . $stream->user->profile->stream_key . '.m3u8') }}">
+                                    data-url="{{ asset('hls/live/' . $stream->user->profile->stream_key . '/index.m3u8') }}">
                                 </video>
 
                                 <div class="mod-live-badge">{{ __('admin.streams.badges.live') }}</div>
@@ -460,7 +460,15 @@
                 const url = video.dataset.url;
 
                 if (Hls.isSupported()) {
-                    const hls = new Hls();
+                    const hls = new Hls({
+                        lowLatencyMode: true,
+                        liveSyncDurationCount: 2,
+                        liveMaxLatencyDurationCount: 4,
+                        maxBufferLength: 3,
+                        maxMaxBufferLength: 6,
+                        backBufferLength: 10,
+                        highBufferWatchdogPeriod: 1,
+                    });
                     hls.loadSource(url);
                     hls.attachMedia(video);
                     hls.on(Hls.Events.MANIFEST_PARSED, function () {

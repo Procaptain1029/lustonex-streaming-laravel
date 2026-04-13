@@ -502,7 +502,12 @@
                     hlsPlayer = new Hls({
                         enableWorker: true,
                         lowLatencyMode: true,
-                        backBufferLength: 90
+                        liveSyncDurationCount: 2,
+                        liveMaxLatencyDurationCount: 4,
+                        maxBufferLength: 3,
+                        maxMaxBufferLength: 6,
+                        backBufferLength: 10,
+                        highBufferWatchdogPeriod: 1,
                     });
 
                     hlsPlayer.loadSource(hlsUrl);

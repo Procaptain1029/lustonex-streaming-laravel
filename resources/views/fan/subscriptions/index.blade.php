@@ -651,11 +651,12 @@
                             <div class="sub-card-premium">
                                 <div class="sub-banner">
                                     <span class="sub-badge">{{ __('fan.subscriptions.auto_renewal') }}</span>
-                                    <img src="{{ $subscription->model->profile->cover_image_url ?? asset('images/default-cover.jpg') }}"
+                                    <img src="{{ $subscription->model->profile->cover_image_url }}"
                                         class="sub-cover" alt="Cover">
                                     <div class="sub-avatar-container">
-                                        <img src="{{ $subscription->model->profile->avatar_url ?? asset('images/default-avatar.jpg') }}"
-                                            class="sub-avatar" alt="Avatar">
+                                        <img src="{{ $subscription->model->profile->avatar_url }}"
+                                            class="sub-avatar" alt="Avatar"
+                                            onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'">
                                     </div>
                                 </div>
                                 <div class="sub-body">

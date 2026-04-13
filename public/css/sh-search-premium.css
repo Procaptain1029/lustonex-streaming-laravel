@@ -382,6 +382,54 @@
     box-shadow: 0 10px 20px rgba(212, 175, 55, 0.3);
 }
 
+/*
+ * Header search: keep row layout + reset button chrome (Tailwind / global CSS on fan & premium layouts).
+ */
+.header-stripchat .header-center .sh-search-input-group {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    align-content: center !important;
+}
+
+.header-stripchat .header-center .sh-search-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex: 0 0 auto !important;
+    flex-shrink: 0 !important;
+    min-width: 0 !important;
+}
+
+.header-stripchat .header-center button.sh-search-btn-filters,
+.header-stripchat .header-center button.sh-search-btn-clear {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+    border-style: none !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+}
+
+.header-stripchat .header-center button.sh-search-btn-filters {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+}
+
+.header-stripchat .header-center button.sh-search-btn-clear {
+    align-items: center;
+    justify-content: center;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .sh-search-wrapper {

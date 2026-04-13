@@ -1077,7 +1077,7 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             const video = document.getElementById('hlsEnhancedPlayer');
-            const streamUrl = '{{ asset("hls/live/" . $model->profile->stream_key . ".m3u8") }}';
+            const streamUrl = '{{ asset("hls/live/" . $model->profile->stream_key . "/index.m3u8") }}';
 
             // Click anywhere on wrapper (except buttons/inputs) to toggle UI
             const wrapper = document.querySelector('.immersive-enhanced-wrapper');
@@ -1100,7 +1100,15 @@
             });
 
             if (Hls.isSupported()) {
-                hls = new Hls();
+                hls = new Hls({
+                    lowLatencyMode: true,
+                    liveSyncDurationCount: 2,
+                    liveMaxLatencyDurationCount: 4,
+                    maxBufferLength: 3,
+                    maxMaxBufferLength: 6,
+                    backBufferLength: 10,
+                    highBufferWatchdogPeriod: 1,
+                });
                 hls.loadSource(streamUrl);
                 hls.attachMedia(video);
                 hls.on(Hls.Events.MANIFEST_PARSED, function() {
@@ -1265,7 +1273,7 @@
         }
 
         function refreshImmStream() {
-            const streamUrl = '{{ asset("hls/live/" . $model->profile->stream_key . ".m3u8") }}';
+            const streamUrl = '{{ asset("hls/live/" . $model->profile->stream_key . "/index.m3u8") }}';
             if (typeof hls !== 'undefined' && hls) {
                 hls.detachMedia();
                 hls.loadSource(streamUrl);

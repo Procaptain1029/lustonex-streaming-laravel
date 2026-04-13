@@ -595,10 +595,18 @@
         document.addEventListener('DOMContentLoaded', function () {
             @if($activeStream)
                 const video = document.getElementById('miniLivePlayer');
-                const streamUrl = "{{ asset('hls/live/' . auth()->user()->profile->stream_key . '.m3u8') }}";
+                const streamUrl = "{{ asset('hls/live/' . auth()->user()->profile->stream_key . '/index.m3u8') }}";
 
                 if (Hls.isSupported()) {
-                    const hls = new Hls();
+                    const hls = new Hls({
+                        lowLatencyMode: true,
+                        liveSyncDurationCount: 2,
+                        liveMaxLatencyDurationCount: 4,
+                        maxBufferLength: 3,
+                        maxMaxBufferLength: 6,
+                        backBufferLength: 10,
+                        highBufferWatchdogPeriod: 1,
+                    });
                     hls.loadSource(streamUrl);
                     hls.attachMedia(video);
                     hls.on(Hls.Events.MANIFEST_PARSED, function () {

@@ -9,33 +9,35 @@ use App\Models\TokenTransaction;
 use App\Events\NewChatMessage;
 use App\Events\NewTip;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class StreamViewController extends Controller
 {
+    protected function streamViewerHasAccess(Stream $stream): bool
+    {
+        if (! auth()->check()) {
+            return false;
+        }
+
+        $model = $stream->user;
+
+        return auth()->id() === $model->id
+            || auth()->user()->isAdmin()
+            || auth()->user()->hasActiveSubscriptionTo($model->id);
+    }
+
     public function show(Stream $stream)
     {
         if ($stream->status !== 'live') {
             return redirect()->back()->with('error', __('admin.flash.stream_view.not_active'));
         }
 
-        $model = $stream->user;
-        
-        
-        $hasAccess = auth()->check() && (
-            auth()->id() === $model->id ||
-            auth()->user()->isAdmin() ||
-            auth()->user()->hasActiveSubscriptionTo($model->id)
-        );
-
-        if (!$hasAccess) {
-            return redirect()->route('profiles.show', $model)
+        if (! $this->streamViewerHasAccess($stream)) {
+            return redirect()->route('profiles.show', $stream->user)
                 ->with('error', __('admin.flash.stream_view.subscribe_required'));
         }
 
-        
         $stream->incrementViewers();
 
         $chatMessages = $stream->chatMessages()
@@ -50,8 +52,45 @@ class StreamViewController extends Controller
         return view('streams.show', compact('stream', 'chatMessages'));
     }
 
+    public function pollChat(Request $request, Stream $stream)
+    {
+        if (! $this->streamViewerHasAccess($stream)) {
+            abort(403);
+        }
+
+        if ($stream->status !== 'live') {
+            return response()->json(['success' => false], 404);
+        }
+
+        $after = max(0, (int) $request->query('after', 0));
+
+        $messages = $stream->chatMessages()
+            ->visible()
+            ->with('user')
+            ->where('id', '>', $after)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'messages' => $messages->map(fn (ChatMessage $m) => [
+                'id' => $m->id,
+                'user' => [
+                    'id' => $m->user->id,
+                    'name' => $m->user->name,
+                ],
+                'message' => $m->message,
+                'created_at' => $m->created_at->toISOString(),
+            ]),
+        ]);
+    }
+
     public function sendMessage(Request $request, Stream $stream)
     {
+        if (! $this->streamViewerHasAccess($stream) || $stream->status !== 'live') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'message' => 'required|string|max:500',
         ]);
@@ -72,6 +111,10 @@ class StreamViewController extends Controller
 
     public function sendTip(Request $request, Stream $stream)
 {
+    if (! $this->streamViewerHasAccess($stream) || $stream->status !== 'live') {
+        abort(403);
+    }
+
     $validated = $request->validate([
         'amount' => 'required|numeric|min:1',
         'message' => 'nullable|string|max:500',

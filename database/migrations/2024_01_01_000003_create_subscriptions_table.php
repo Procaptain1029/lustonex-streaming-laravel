@@ -16,8 +16,8 @@ return new class extends Migration
             $table->foreignId('fan_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('model_id')->constrained('users')->onDelete('cascade');
             $table->enum('status', ['active', 'expired', 'cancelled'])->default('active');
-            $table->timestamp('starts_at');
-            $table->timestamp('expires_at');
+            $table->timestamp('starts_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
             $table->decimal('amount', 10, 2);
             $table->string('payment_method')->nullable();
             $table->string('transaction_id')->nullable();

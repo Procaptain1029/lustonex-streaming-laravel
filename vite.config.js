@@ -7,6 +7,7 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/js/app.js',
+                'resources/js/stream-viewer.js',
                 'resources/css/premium-design.css',
                 'resources/css/icons.css',
                 'resources/css/sh-search-premium.css',

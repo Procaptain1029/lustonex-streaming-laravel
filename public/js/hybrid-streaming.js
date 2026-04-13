@@ -505,7 +505,13 @@ class HybridStreamingManager {
             const hls = new Hls({
                 debug: false,
                 enableWorker: true,
-                lowLatencyMode: true
+                lowLatencyMode: true,
+                liveSyncDurationCount: 2,
+                liveMaxLatencyDurationCount: 4,
+                maxBufferLength: 3,
+                maxMaxBufferLength: 6,
+                backBufferLength: 10,
+                highBufferWatchdogPeriod: 1,
             });
 
             hls.loadSource(hlsUrl);

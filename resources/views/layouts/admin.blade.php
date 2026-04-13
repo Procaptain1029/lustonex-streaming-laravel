@@ -21,8 +21,8 @@
     @vite([
         'resources/css/premium-design.css',
         'resources/css/icons.css',
-        'resources/css/sh-search-premium.css',
         'resources/css/app.css',
+        'resources/css/sh-search-premium.css',
         'resources/js/app.js'
     ])
 

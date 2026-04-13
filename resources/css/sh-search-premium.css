@@ -31,6 +31,8 @@
 
 .sh-search-input-group {
     display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 12px;
 }
@@ -42,24 +44,58 @@
 }
 
 .sh-search-input-field {
-    background: transparent;
-    border: none;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
     outline: none;
+    box-shadow: none !important;
     color: #fff !important;
+    -webkit-text-fill-color: #fff;
     font-size: 14px;
     flex: 1;
+    min-width: 0;
     height: 36px;
     font-family: 'Raleway', sans-serif;
+}
+
+/* Chrome / Edge autofill overrides UA white background */
+.sh-search-input-field:-webkit-autofill,
+.sh-search-input-field:-webkit-autofill:hover,
+.sh-search-input-field:-webkit-autofill:focus,
+.sh-search-input-field:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px rgba(22, 22, 26, 0.98) inset !important;
+    box-shadow: 0 0 0 1000px rgba(22, 22, 26, 0.98) inset !important;
+    -webkit-text-fill-color: #fff !important;
+    caret-color: #fff;
+    transition: background-color 99999s ease-out 0s;
 }
 
 .sh-search-input-field::placeholder {
     color: rgba(255, 255, 255, 0.4);
 }
 
+/* @tailwindcss/forms sets white bg + borders on [type=text]; reset focus ring here too */
+.sh-search-input-field:focus,
+.sh-search-input-field:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    border-color: transparent !important;
+}
+
 .sh-search-actions {
     display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 5px;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
 }
 
 .sh-search-divider {
@@ -70,18 +106,56 @@
 }
 
 .sh-search-btn-filters {
-    background: rgba(212, 175, 55, 0.1);
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: rgba(212, 175, 55, 0.1);
+    background-image: none;
     border: none;
     color: #D4AF37;
-    padding: 8px 16px;
+    padding: 0 12px;
+    min-height: 30px;
     border-radius: 40px;
     font-size: 13px;
     font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap;
+    line-height: 1 !important;
     transition: all 0.3s ease;
+    box-shadow: none;
+    vertical-align: middle;
+}
+
+/* Inner row isolates icon + label from any parent flex quirks */
+.sh-search-filters-inner {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.4rem;
+    line-height: 1 !important;
+    white-space: nowrap;
+}
+
+.sh-search-filters-icon {
+    display: inline-block !important;
+    flex-shrink: 0 !important;
+    line-height: 1 !important;
+    font-size: 0.85rem !important;
+    width: 1em;
+    text-align: center;
+}
+
+.sh-search-filters-label {
+    display: inline !important;
+    line-height: 1.2 !important;
+    flex-shrink: 0;
 }
 
 .sh-search-btn-filters:hover {
@@ -91,14 +165,22 @@
 }
 
 .sh-search-btn-clear {
-    background: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    background-image: none;
     border: none;
     color: rgba(255, 255, 255, 0.3);
     cursor: pointer;
     font-size: 18px;
-    padding: 5px;
+    padding: 4px;
+    margin: 0;
     transition: color 0.3s ease;
     display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: none;
     /* Initially hidden */
 }
 
@@ -108,6 +190,12 @@
 
 /* Redundant Mobile trigger fix - Hide by default, header will handle mobile trigger */
 .sh-search-mobile-trigger {
+    display: none !important;
+}
+
+/* Filters Overlay — must not live under a transformed ancestor (e.g. header centering),
+   or position:fixed is clipped to that box and content overflows over the page. JS moves this to body on load. */
+.sh-search-overlay[hidden] {
     display: none !important;
 }
 
@@ -310,7 +398,13 @@
 .sh-search-label-text {
     color: rgba(255, 255, 255, 0.7);
     font-size: 14px;
+    line-height: 1.35;
     transition: color 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    flex: 1;
+    min-width: 0;
 }
 
 .sh-search-custom-cb input:checked~.sh-search-label-text {
@@ -373,6 +467,108 @@
 .sh-search-btn-apply:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(212, 175, 55, 0.3);
+}
+
+/*
+ * Tailwind preflight loads with app.css and can reset buttons after this file
+ * when sh-search-premium is bundled earlier. These rules load last (see layouts)
+ * and restore the modal footer + checkbox row layout.
+ */
+.sh-search-window-footer button.sh-search-btn-reset {
+    background: transparent !important;
+    background-image: none !important;
+    color: rgba(255, 255, 255, 0.45) !important;
+    border: none !important;
+    padding: 10px 8px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    font-family: 'Montserrat', 'Raleway', sans-serif !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.sh-search-window-footer button.sh-search-btn-reset:hover {
+    color: #d4af37 !important;
+}
+
+.sh-search-window-footer button.sh-search-btn-apply {
+    background: linear-gradient(135deg, #d4af37, #f4e37d) !important;
+    background-image: linear-gradient(135deg, #d4af37, #f4e37d) !important;
+    color: #0b0b0d !important;
+    border: none !important;
+    padding: 12px 28px !important;
+    border-radius: 14px !important;
+    font-weight: 800 !important;
+    font-size: 14px !important;
+    font-family: 'Montserrat', 'Raleway', sans-serif !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.sh-search-window-footer button.sh-search-btn-apply:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(212, 175, 55, 0.35);
+}
+
+.sh-search-custom-cb input[type="checkbox"] {
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    pointer-events: none;
+}
+
+/*
+ * Header search (header-unified): layout and button chrome keep breaking when Tailwind order,
+ * new utilities on ancestors, or global CSS change. This block uses .header-stripchat + element
+ * selectors so it wins over single-class utilities without scattering !important in the Blade file.
+ */
+.header-stripchat .header-center .sh-search-input-group {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    align-content: center !important;
+}
+
+.header-stripchat .header-center .sh-search-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex: 0 0 auto !important;
+    flex-shrink: 0 !important;
+    min-width: 0 !important;
+}
+
+.header-stripchat .header-center button.sh-search-btn-filters,
+.header-stripchat .header-center button.sh-search-btn-clear {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+    border-style: none !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+}
+
+.header-stripchat .header-center button.sh-search-btn-filters {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+}
+
+.header-stripchat .header-center button.sh-search-btn-clear {
+    align-items: center;
+    justify-content: center;
 }
 
 /* Responsive */

@@ -17,8 +17,8 @@ return new class extends Migration
             $table->string('name');
             $table->text('description');
             $table->enum('type', ['competition', 'challenge', 'special'])->default('challenge');
-            $table->timestamp('starts_at');
-            $table->timestamp('ends_at');
+            $table->timestamp('starts_at')->nullable();
+            $table->timestamp('ends_at')->nullable();
             $table->json('rules');
             $table->json('rewards');
             $table->boolean('is_active')->default(true);

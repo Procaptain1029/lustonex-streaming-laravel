@@ -2308,7 +2308,15 @@
             if (video) {
                 const url = video.dataset.url;
                 if (Hls.isSupported()) {
-                    const hls = new Hls();
+                    const hls = new Hls({
+                        lowLatencyMode: true,
+                        liveSyncDurationCount: 2,
+                        liveMaxLatencyDurationCount: 4,
+                        maxBufferLength: 3,
+                        maxMaxBufferLength: 6,
+                        backBufferLength: 10,
+                        highBufferWatchdogPeriod: 1,
+                    });
                     hls.loadSource(url);
                     hls.attachMedia(video);
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {

@@ -39,8 +39,8 @@ class RTMPController extends Controller
             $stream->update([
                 'status' => 'live',
                 'started_at' => now(),
-                'rtmp_url' => "rtmp://localhost/live/{$streamKey}",
-                'hls_url' => "/hls/live/{$streamKey}.m3u8"
+                'rtmp_url' => "rtmp://127.0.0.1:1935/live/{$streamKey}",
+                'hls_url' => "/hls/live/{$streamKey}/index.m3u8"
             ]);
             
             Log::info("RTMP Auth successful: Stream record updated", ['stream_id' => $stream->id]);
@@ -246,7 +246,7 @@ class RTMPController extends Controller
             'success' => true,
             'stream_key' => $streamKey,
             'rtmp_url' => "rtmp://127.0.0.1:1935/live",
-            'hls_url' => "/hls/live/{$streamKey}.m3u8",
+            'hls_url' => "/hls/live/{$streamKey}/index.m3u8",
             'message' => __('admin.flash.rtmp.key_generated')
         ]);
     }
@@ -276,11 +276,11 @@ class RTMPController extends Controller
                 'display_name' => $stream->user->profile->display_name ?? $stream->user->name,
                 'avatar' => $stream->user->profile->avatar ?? null
             ],
-            'hls_url' => "/hls/live/{$streamKey}.m3u8",
+            'hls_url' => "/hls/live/{$streamKey}/index.m3u8",
             'qualities' => [
-                '720p' => "/hls/live/{$streamKey}_720p.m3u8",
-                '480p' => "/hls/live/{$streamKey}_480p.m3u8",
-                '360p' => "/hls/live/{$streamKey}_360p.m3u8"
+                '720p' => "/hls/live/{$streamKey}/720p/index.m3u8",
+                '480p' => "/hls/live/{$streamKey}/480p/index.m3u8",
+                '360p' => "/hls/live/{$streamKey}/360p/index.m3u8"
             ]
         ]);
     }
@@ -288,14 +288,14 @@ class RTMPController extends Controller
     
     public function checkSignal($streamKey)
     {
-        $hlsPath = public_path("hls/live/{$streamKey}.m3u8");
+        $hlsPath = public_path("hls/live/{$streamKey}/index.m3u8");
         $isActive = file_exists($hlsPath);
         
         return response()->json([
             'success' => true,
             'active' => $isActive,
             'stream_key' => $streamKey,
-            'url' => $isActive ? asset("hls/live/{$streamKey}.m3u8") : null,
+            'url' => $isActive ? asset("hls/live/{$streamKey}/index.m3u8") : null,
             'check_at' => now()->toIso8601String()
         ]);
     }
