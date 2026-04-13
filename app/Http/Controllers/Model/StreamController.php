@@ -9,6 +9,7 @@ use App\Events\NewChatMessage;
 use App\Events\StreamStarted;
 use App\Events\StreamEnded;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class StreamController extends Controller
 {
@@ -342,11 +343,19 @@ class StreamController extends Controller
             'user_id' => auth()->id(),
             'model_id' => $stream->user_id,
             'message' => $validated['message'],
-            'is_visible' => true,
+            'is_hidden' => false,
         ]);
 
         $message->load('user');
-        event(new NewChatMessage($message));
+        try {
+            event(new NewChatMessage($message));
+        } catch (\Throwable $e) {
+            Log::warning('Stream chat broadcast failed (message saved)', [
+                'message_id' => $message->id,
+                'stream_id' => $stream->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'success' => true,

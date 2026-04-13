@@ -205,11 +205,21 @@
         -webkit-appearance: none !important;
         appearance: none !important;
         background-image: none !important;
+        border: 0 !important;
+        border-style: none !important;
+        border-width: 0 !important;
         box-shadow: none !important;
+        box-sizing: border-box !important;
+        outline: none !important;
+        cursor: pointer !important;
+        position: static !important;
+        float: none !important;
+        margin: 0 !important;
     }
 
     .header-center .sh-search-btn-filters {
         background-color: rgba(212, 175, 55, 0.12) !important;
+        color: #D4AF37 !important;
         display: inline-flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
@@ -219,7 +229,17 @@
         padding: 0 10px !important;
         min-height: 28px !important;
         max-height: 34px !important;
+        border-radius: 40px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        font-family: inherit !important;
         line-height: 1 !important;
+        gap: 0.35rem !important;
+    }
+
+    .header-center .sh-search-btn-filters:hover {
+        background: linear-gradient(135deg, #D4AF37, #F4E37D) !important;
+        color: #000 !important;
     }
 
     .header-center .sh-search-filters-inner {
@@ -229,6 +249,7 @@
         align-items: center !important;
         gap: 0.35rem !important;
         line-height: 1 !important;
+        pointer-events: none;
     }
 
     .header-center .sh-search-filters-icon {
@@ -239,7 +260,22 @@
     }
 
     .header-center .sh-search-btn-clear {
+        background: transparent !important;
         background-color: transparent !important;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        color: rgba(255, 255, 255, 0.35) !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        font-size: 18px !important;
+        line-height: 1 !important;
+    }
+
+    .header-center .sh-search-btn-clear:hover {
+        color: #ff4b4b !important;
     }
 
     @media (max-width: 1200px) {

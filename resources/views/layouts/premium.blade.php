@@ -29,7 +29,8 @@
     <!-- Non-Critical CSS (Asynchronous Loading) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons/css/flag-icons.min.css" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="{{ asset('css/icons.css') }}" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="{{ asset('css/sh-search-premium.css') }}" media="print" onload="this.media='all'">
+    <!-- Search UI is header-critical; keep sync to avoid default button/icon flash -->
+    <link rel="stylesheet" href="{{ asset('css/sh-search-premium.css') }}">
 
     
     @stack('styles')

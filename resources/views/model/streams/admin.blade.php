@@ -657,6 +657,8 @@
     </div>
 @endsection
 @section('scripts')
+    <script type="application/json" id="model-stream-broadcast-config">@json(['streamId' => $stream->id])</script>
+    @vite(['resources/js/model-stream-admin-echo.js'])
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         let hls = null;
@@ -968,6 +970,22 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        // Realtime (Echo): same payload as NewChatMessage broadcast
+        window.modelStreamApplyBroadcastChat = function (payload) {
+            if (!payload || payload.id == null) return;
+            const msg = {
+                id: payload.id,
+                user_id: payload.user?.id,
+                user: { name: payload.user?.name || '' },
+                message: payload.message || '',
+            };
+            const isModel = msg.user_id === currentUserId;
+            addMessageToChat(msg, isModel);
+            if (payload.id > lastMessageId) {
+                lastMessageId = payload.id;
+            }
+        };
+
         // Fetch new messages periodically
         async function fetchNewMessages() {
             try {
@@ -1145,8 +1163,8 @@
             fetchActivitiesFeed();
             setInterval(fetchActivitiesFeed, 3000);
 
-            // Actualizar mensajes nuevos de chat (polling)
-            setInterval(fetchNewMessages, 2500);
+            // Chat: Echo delivers instantly when Pusher is configured; 1s polling is backup + dedupe
+            setInterval(fetchNewMessages, 1000);
 
             // Auto-scroll chat al cargar
             const chat = document.getElementById('chatContainer');

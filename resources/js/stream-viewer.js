@@ -64,10 +64,12 @@ function initStreamViewerChat() {
                 .catch(() => {});
         };
 
-        if (!window.Echo) {
-            poll();
-        }
-        setInterval(poll, window.Echo ? 12000 : 4000);
+        // Without WebSockets: poll often so chat feels responsive (was 4s).
+        // With Echo: WebSocket delivers instantly; polling is only a safety net (was 12s).
+        const pollMs = window.Echo ? 20000 : 1200;
+
+        poll();
+        setInterval(poll, pollMs);
     }
 }
 
