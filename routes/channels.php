@@ -25,13 +25,28 @@ Broadcast::channel('streams', function () {
 // Canal específico para cada stream (chat y tips)
 Broadcast::channel('stream.{streamId}', function ($user, $streamId) {
     $stream = \App\Models\Stream::find($streamId);
-    
-    if (!$stream || $stream->status !== 'live') {
+
+    if (!$stream || !in_array($stream->status, ['live', 'paused'], true)) {
         return false;
     }
-    
-    // Verificar acceso al stream
-    return $user->isAdmin() || 
-           $user->id === $stream->user_id || 
-           $user->hasActiveSubscriptionTo($stream->user_id);
+
+    // Keep owner/admin access, but also allow authenticated fans to receive live stream events.
+    return $user->isAdmin() || $user->id === $stream->user_id || $user->isFan();
+});
+
+Broadcast::channel('presence-stream.{streamId}', function ($user, $streamId) {
+    $stream = \App\Models\Stream::find($streamId);
+    if (!$stream || !in_array($stream->status, ['live', 'paused'], true)) {
+        return false;
+    }
+
+    // WebRTC signaling channel: allow authenticated fans to join while stream is active.
+    if (!$user->isAdmin() && $user->id !== $stream->user_id && !$user->isFan()) {
+        return false;
+    }
+
+    return [
+        'id' => $user->id,
+        'name' => $user->name,
+    ];
 });

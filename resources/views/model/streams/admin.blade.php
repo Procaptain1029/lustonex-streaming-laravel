@@ -185,6 +185,7 @@
             border-top: 1px solid var(--twitch-border);
             background: var(--twitch-bg);
             display: flex;
+            align-items: stretch;
             gap: 1rem;
             flex-wrap: nowrap;
             overflow-x: auto;
@@ -192,6 +193,7 @@
 
         .shortcut-tile {
             width: 120px;
+            min-width: 120px;
             height: 100px;
             background: var(--twitch-panel);
             border: 1px solid rgba(255,255,255,0.1);
@@ -497,17 +499,15 @@
                         <div class="badge-quality">{{ __('model.streams.admin.quality') }}</div>
                     </div>
 
-                    @if($stream->status === 'live' || $stream->status === 'paused')
-                        <video id="hlsMainPlayer" controls autoplay muted playsinline
-                            data-url="{{ asset('hls/live/' . $stream->stream_key . '/index.m3u8') }}">
-                        </video>
-                    @else
-                        <div class="empty-state">
-                            <i class="fas fa-video-slash" style="font-size: 3rem; margin-bottom: 1rem; color: rgba(255,255,255,0.1)"></i>
-                            <h3>{{ __('model.streams.admin.offline_title') }}</h3>
-                            <p style="font-size: 0.8rem; margin-top: 0.5rem;">{{ __('model.streams.admin.offline_desc') }}</p>
-                        </div>
-                    @endif
+                    <video id="hlsMainPlayer" controls autoplay muted playsinline
+                        data-url="{{ asset('hls/live/' . $stream->stream_key . '/index.m3u8') }}"
+                        style="{{ $stream->status === 'live' || $stream->status === 'paused' ? '' : 'display:none;' }}">
+                    </video>
+                    <div id="adminPlayerPlaceholder" class="empty-state" style="{{ $stream->status === 'live' || $stream->status === 'paused' ? 'display:none;' : '' }}">
+                        <i class="fas fa-video-slash" style="font-size: 3rem; margin-bottom: 1rem; color: rgba(255,255,255,0.1)"></i>
+                        <h3>{{ __('model.streams.admin.offline_title') }}</h3>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">{{ __('model.streams.admin.offline_desc') }}</p>
+                    </div>
                 </div>
 
                 <!-- TILES CONTROLS -->
@@ -519,14 +519,14 @@
                         <form id="pauseForm" action="{{ route('model.streams.pause', $stream) }}" method="POST" style="display: none;">@csrf</form>
                         <button class="shortcut-tile" onclick="handlePause()">
                             <div class="tile-icon"><i class="fas fa-pause"></i></div>
-                            <div class="tile-text">{{ __('model.streams.admin.pause') }}<br>stream</div>
+                            <div class="tile-text">{{ __('model.streams.admin.pause') }} Stream</div>
                         </button>
                     @elseif($stream->status === 'paused')
                         <form action="{{ route('model.streams.resume', $stream) }}" method="POST" style="display:inline-block; margin: 0;">
                             @csrf
                             <button type="submit" class="shortcut-tile active-bg">
                                 <div class="tile-icon"><i class="fas fa-play"></i></div>
-                                <div class="tile-text">{{ __('model.streams.admin.resume') }}<br>stream</div>
+                                <div class="tile-text">{{ __('model.streams.admin.resume') }} Stream</div>
                             </button>
                         </form>
                     @endif
@@ -534,6 +534,10 @@
                     <button class="shortcut-tile" onclick="refreshPlayer()">
                         <div class="tile-icon"><i class="fas fa-sync-alt"></i></div>
                         <div class="tile-text">{{ __('model.streams.admin.refresh_player') }}</div>
+                    </button>
+                    <button class="shortcut-tile active-bg" type="button" onclick="toggleWebRtcAdminPreview()">
+                        <div class="tile-icon"><i class="fas fa-satellite-dish"></i></div>
+                        <div class="tile-text">Go Live<br>WebRTC</div>
                     </button>
 
                     <form action="{{ route('model.streams.end', $stream) }}" method="POST" id="endStreamForm" style="margin: 0;">
@@ -659,13 +663,44 @@
 @section('scripts')
     <script type="application/json" id="model-stream-broadcast-config">@json(['streamId' => $stream->id])</script>
     @vite(['resources/js/model-stream-admin-echo.js'])
+    <script src="{{ asset('js/webrtc-ll.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         let hls = null;
+        let adminWebRtc = null;
+        let adminWebRtcRunning = false;
         let streamId = {{ $stream->id }};
         let lastMessageId = {{ $stream->chatMessages->last()->id ?? 0 }};
         let currentUserId = {{ auth()->id() }};
         let pauseMode = '{{ auth()->user()->profile->pause_mode ?? 'none' }}';
+
+        async function toggleWebRtcAdminPreview() {
+            const video = document.getElementById('hlsMainPlayer');
+            const placeholder = document.getElementById('adminPlayerPlaceholder');
+
+            if (!adminWebRtcRunning) {
+                try {
+                    adminWebRtc = adminWebRtc || new WebRTCLowLatency();
+                    await adminWebRtc.startBroadcast(streamId, video);
+                    adminWebRtcRunning = true;
+
+                    if (placeholder) placeholder.style.display = 'none';
+                    if (video) video.style.display = '';
+                } catch (error) {
+                    console.error('WebRTC start failed:', error);
+                    Swal.fire({ icon: 'error', title: 'WebRTC', text: error.message || 'Could not start WebRTC broadcast' });
+                }
+                return;
+            }
+
+            try {
+                await adminWebRtc.stopBroadcast();
+            } catch (error) {
+                console.warn('WebRTC stop warning:', error);
+            }
+
+            adminWebRtcRunning = false;
+        }
 
         function initHls() {
             const video = document.getElementById('hlsMainPlayer');

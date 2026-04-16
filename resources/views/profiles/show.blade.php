@@ -2301,26 +2301,66 @@
             }
         });
     </script>
+    <script src="{{ asset('js/webrtc-ll.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const video = document.getElementById('hlsProfilePlayer');
+            const modeBadge = document.getElementById('profilePlaybackModeBadge');
+            const setModeBadge = (label, bgColor = 'rgba(0,0,0,0.7)') => {
+                if (!modeBadge) return;
+                modeBadge.textContent = `Mode: ${label}`;
+                modeBadge.style.background = bgColor;
+            };
             if (video) {
                 const url = video.dataset.url;
-                if (Hls.isSupported()) {
-                    const hls = new Hls({
-                        lowLatencyMode: true,
-                        liveSyncDurationCount: 2,
-                        liveMaxLatencyDurationCount: 4,
-                        maxBufferLength: 3,
-                        maxMaxBufferLength: 6,
-                        backBufferLength: 10,
-                        highBufferWatchdogPeriod: 1,
-                    });
-                    hls.loadSource(url);
-                    hls.attachMedia(video);
-                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = url;
+                let hls = null;
+                let hlsStarted = false;
+                const streamId = {{ $activeStream->id ?? 'null' }};
+                const shouldTryWebRtc = Number.isInteger(streamId);
+                setModeBadge('Connecting...', '#2563eb');
+
+                const startHlsFallback = () => {
+                    if (hlsStarted) return;
+                    hlsStarted = true;
+                    setModeBadge('HLS Fallback', '#b45309');
+                    if (Hls.isSupported()) {
+                        hls = new Hls({
+                            lowLatencyMode: true,
+                            liveSyncDurationCount: 2,
+                            liveMaxLatencyDurationCount: 4,
+                            maxBufferLength: 3,
+                            maxMaxBufferLength: 6,
+                            backBufferLength: 10,
+                            highBufferWatchdogPeriod: 1,
+                        });
+                        hls.loadSource(url);
+                        hls.attachMedia(video);
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = url;
+                    }
+                };
+
+                if (shouldTryWebRtc && window.WebRTCLowLatency) {
+                    const webrtc = new WebRTCLowLatency();
+                    webrtc.joinBroadcast(streamId, video)
+                        .catch(() => startHlsFallback());
+
+                    window.addEventListener('webrtc-peer-connected', () => {
+                        if (hls) {
+                            hls.destroy();
+                            hls = null;
+                        }
+                        setModeBadge('WebRTC (Low Latency)', '#15803d');
+                    }, { once: true });
+
+                    setTimeout(() => {
+                        if (!video.srcObject) {
+                            startHlsFallback();
+                        }
+                    }, 8000);
+                } else {
+                    startHlsFallback();
                 }
             }
 

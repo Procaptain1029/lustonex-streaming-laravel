@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     
+    <script src="{{ asset('js/webrtc-ll.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
     
@@ -1071,9 +1072,7 @@
 
         // Stream connection simulation
         document.addEventListener('DOMContentLoaded', function () {
-            setTimeout(() => {
-                connectToStream();
-            }, 2000);
+            connectToStream();
         });
 
         function connectToStream() {
@@ -1085,49 +1084,70 @@
                 noVideoMessage.style.display = 'none';
             }
 
-            // Initialize HLS player
             const streamUrl = '{{ asset("hls/live/" . $stream->user->profile->stream_key . "/index.m3u8") }}';
+            const streamId = {{ $stream->id }};
+            let hls = null;
+            let hlsStarted = false;
 
-            if (Hls.isSupported()) {
-                const hls = new Hls({
-                    enableWorker: true,
-                    lowLatencyMode: true,
-                    liveSyncDurationCount: 2,
-                    liveMaxLatencyDurationCount: 4,
-                    maxBufferLength: 3,
-                    maxMaxBufferLength: 6,
-                    backBufferLength: 10,
-                    highBufferWatchdogPeriod: 1,
-                });
-                hls.loadSource(streamUrl);
-                hls.attachMedia(remoteVideo);
-                hls.on(Hls.Events.MANIFEST_PARSED, function () {
-                    remoteVideo.play().catch(e => console.log("Autoplay error:", e));
-                });
-                hls.on(Hls.Events.ERROR, function (event, data) {
-                    console.error('HLS error:', data);
-                    if (data.fatal) {
-                        switch (data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                console.log('Network error, trying to recover...');
-                                hls.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                console.log('Media error, trying to recover...');
-                                hls.recoverMediaError();
-                                break;
-                            default:
-                                console.log('Fatal error, destroying HLS instance');
-                                hls.destroy();
-                                break;
+            const startHlsFallback = () => {
+                if (hlsStarted) return;
+                hlsStarted = true;
+                if (Hls.isSupported()) {
+                    hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                        liveSyncDurationCount: 2,
+                        liveMaxLatencyDurationCount: 4,
+                        maxBufferLength: 3,
+                        maxMaxBufferLength: 6,
+                        backBufferLength: 10,
+                        highBufferWatchdogPeriod: 1,
+                    });
+                    hls.loadSource(streamUrl);
+                    hls.attachMedia(remoteVideo);
+                    hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                        remoteVideo.play().catch(e => console.log("Autoplay error:", e));
+                    });
+                    hls.on(Hls.Events.ERROR, function (event, data) {
+                        console.error('HLS error:', data);
+                        if (data.fatal) {
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    hls.destroy();
+                                    break;
+                            }
                         }
+                    });
+                } else if (remoteVideo.canPlayType('application/vnd.apple.mpegurl')) {
+                    remoteVideo.src = streamUrl;
+                    remoteVideo.addEventListener('loadedmetadata', function () {
+                        remoteVideo.play().catch(e => console.log("Autoplay error:", e));
+                    });
+                }
+            };
+
+            if (window.WebRTCLowLatency) {
+                const webrtc = new WebRTCLowLatency();
+                webrtc.joinBroadcast(streamId, remoteVideo).catch(() => startHlsFallback());
+                window.addEventListener('webrtc-peer-connected', () => {
+                    if (hls) {
+                        hls.destroy();
+                        hls = null;
                     }
-                });
-            } else if (remoteVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                remoteVideo.src = streamUrl;
-                remoteVideo.addEventListener('loadedmetadata', function () {
-                    remoteVideo.play().catch(e => console.log("Autoplay error:", e));
-                });
+                }, { once: true });
+                setTimeout(() => {
+                    if (!remoteVideo.srcObject) {
+                        startHlsFallback();
+                    }
+                }, 8000);
+            } else {
+                startHlsFallback();
             }
 
             console.log('{{ __('streams.is_live', ['name' => $stream->user->name]) }}');

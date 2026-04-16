@@ -1,342 +1,520 @@
-/**
- * Lustonex WebRTC Low-Latency Streaming (0.5-1s)
- * Uses Pusher (via Laravel Echo) for signaling.
- * 
- * Architecture:
- *   Model browser → WebRTC → Fan browser (peer-to-peer, ~0.5-1s latency)
- *   Signaling goes through Pusher private channels (client events)
- *
- * Usage:
- *   const webrtc = new WebRTCLowLatency();
- *   // As model:  webrtc.startBroadcast(streamId, videoElement);
- *   // As viewer: webrtc.joinBroadcast(streamId, videoElement);
- */
 class WebRTCLowLatency {
     constructor() {
-        this.peerConnections = new Map(); // peerId → RTCPeerConnection
+        this.peerConnections = new Map();
+        this.pendingIceCandidates = new Map();
         this.localStream = null;
         this.streamId = null;
         this.isBroadcaster = false;
         this.channel = null;
+        this.remoteVideoElement = null;
         this.myPeerId = this._generatePeerId();
+        this.viewerReadyTimer = null;
+        this.viewerReadyDeadline = 0;
+        this.handledSignalIds = new Set();
+        this.useRelayForMediaSignals = true;
+        this.mediaRelayFallbackTimer = null;
 
-        // ICE servers for NAT traversal
-        this.iceServers = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
+        this.iceServers = window.WEBRTC_ICE_SERVERS || [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" }
         ];
-
-        // Video constraints optimized for low latency
-        this.videoConstraints = {
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 30, max: 60 },
-        };
-
-        this.audioConstraints = {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 44100,
-        };
-
-        console.log('[WebRTC-LL] Initialized, peerId:', this.myPeerId);
     }
 
-    // ════════════════════════════════════════════
-    // Broadcaster (Model) Methods
-    // ════════════════════════════════════════════
-
-    /**
-     * Start broadcasting via WebRTC
-     * @param {number} streamId - Stream ID from Laravel
-     * @param {HTMLVideoElement} videoElement - Local preview element
-     */
     async startBroadcast(streamId, videoElement) {
         this.streamId = streamId;
         this.isBroadcaster = true;
 
-        try {
-            // 1. Get camera/mic access
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                video: this.videoConstraints,
-                audio: this.audioConstraints,
-            });
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
 
-            // 2. Show local preview (muted to avoid echo)
-            if (videoElement) {
-                videoElement.srcObject = this.localStream;
-                videoElement.muted = true;
-                await videoElement.play().catch(() => {});
-            }
-
-            // 3. Join Pusher signaling channel
-            this._joinSignalingChannel(streamId);
-
-            // 4. Notify Laravel
-            await this._apiCall(`/api/stream/${streamId}/start-broadcast`, 'POST');
-
-            console.log('[WebRTC-LL] 📡 Broadcasting started for stream:', streamId);
-            return { success: true, mode: 'webrtc', peerId: this.myPeerId };
-
-        } catch (error) {
-            console.error('[WebRTC-LL] Broadcast error:', error);
-
-            if (error.name === 'NotAllowedError') {
-                throw new Error('Camera/mic permission denied');
-            } else if (error.name === 'NotFoundError') {
-                throw new Error('No camera/mic found');
-            }
-            throw error;
+        if (videoElement) {
+            videoElement.srcObject = this.localStream;
+            videoElement.muted = true;
+            await videoElement.play().catch(() => {});
         }
+
+        await this._joinSignalingChannel(streamId);
+        await this._apiCall(`/webrtc/stream/${streamId}/start-broadcast`, "POST");
+        this._sendSignal("broadcaster-ready", { peerId: this.myPeerId });
+
+        return { success: true, mode: "webrtc" };
     }
 
-    // ════════════════════════════════════════════
-    // Viewer (Fan) Methods
-    // ════════════════════════════════════════════
+    async stopBroadcast() {
+        if (!this.streamId || !this.isBroadcaster) {
+            return;
+        }
+        await this._apiCall(`/webrtc/stream/${this.streamId}/stop-broadcast`, "POST").catch(() => {});
+        this.cleanup();
+    }
 
-    /**
-     * Join a WebRTC broadcast as viewer
-     * @param {number} streamId - Stream ID
-     * @param {HTMLVideoElement} videoElement - Remote video element
-     */
     async joinBroadcast(streamId, videoElement) {
         this.streamId = streamId;
         this.isBroadcaster = false;
         this.remoteVideoElement = videoElement;
 
-        try {
-            // 1. Join signaling channel
-            this._joinSignalingChannel(streamId);
+        await this._joinSignalingChannel(streamId);
+        await this._apiCall(`/webrtc/stream/${streamId}/join-viewer`, "POST");
 
-            // 2. Notify broadcaster we want to connect
-            setTimeout(() => {
-                this._sendSignal('viewer-ready', {
-                    peerId: this.myPeerId,
-                });
-            }, 1000); // Wait for channel subscription
-
-            // 3. Notify Laravel
-            await this._apiCall(`/api/stream/${streamId}/join-viewer`, 'POST');
-
-            console.log('[WebRTC-LL] 👁️ Joined broadcast as viewer:', streamId);
-            return { success: true, mode: 'webrtc', peerId: this.myPeerId };
-
-        } catch (error) {
-            console.error('[WebRTC-LL] Join error:', error);
-            throw error;
-        }
+        this._startViewerReadyLoop();
+        this._scheduleMediaRelayFallback();
+        return { success: true, mode: "webrtc" };
     }
 
-    // ════════════════════════════════════════════
-    // Signaling via Pusher
-    // ════════════════════════════════════════════
+    async leaveBroadcast() {
+        if (!this.streamId || this.isBroadcaster) {
+            return;
+        }
+        await this._apiCall(`/webrtc/stream/${this.streamId}/leave-viewer`, "POST").catch(() => {});
+        this.cleanup();
+    }
 
-    _joinSignalingChannel(streamId) {
-        // Requires Laravel Echo to be initialized (window.Echo)
+    async _joinSignalingChannel(streamId) {
         if (!window.Echo) {
-            console.error('[WebRTC-LL] Laravel Echo not available. Ensure Pusher is configured.');
+            throw new Error("Laravel Echo is not initialized");
+        }
+
+        if (this.channel) {
             return;
         }
 
-        const channelName = `presence-stream.${streamId}`;
-        this.channel = window.Echo.join(channelName);
-
+        this.channel = window.Echo.join(`presence-stream.${streamId}`);
         this.channel
             .here((users) => {
-                console.log('[WebRTC-LL] Users in channel:', users.length);
+                if (!this.isBroadcaster) {
+                    const modelUser = users.find((u) => u && Number(u.id) !== Number(window.currentUserId || 0));
+                    if (modelUser) {
+                        this._sendViewerReady();
+                    }
+                }
             })
             .joining((user) => {
-                console.log('[WebRTC-LL] User joined:', user);
+                if (!this.isBroadcaster && user && Number(user.id) !== Number(window.currentUserId || 0)) {
+                    this._sendViewerReady();
+                }
             })
             .leaving((user) => {
-                console.log('[WebRTC-LL] User left:', user);
+                if (!user) return;
                 this._handlePeerDisconnect(user.id);
             })
-            // Listen for client events (signaling)
-            .listenForWhisper('viewer-ready', (data) => {
-                if (this.isBroadcaster) {
-                    this._handleViewerReady(data);
-                }
-            })
-            .listenForWhisper('webrtc-offer', (data) => {
-                if (!this.isBroadcaster && data.targetPeerId === this.myPeerId) {
-                    this._handleOffer(data);
-                }
-            })
-            .listenForWhisper('webrtc-answer', (data) => {
-                if (this.isBroadcaster && data.targetPeerId === this.myPeerId) {
-                    this._handleAnswer(data);
-                }
-            })
-            .listenForWhisper('webrtc-ice', (data) => {
-                if (data.targetPeerId === this.myPeerId) {
-                    this._handleIceCandidate(data);
-                }
+            .listen(".webrtc.signal", (data) => {
+                this._handleRelayedSignal(data);
             });
 
-        console.log('[WebRTC-LL] Joined signaling channel:', channelName);
-    }
-
-    _sendSignal(event, data) {
-        if (this.channel) {
-            this.channel.whisper(event, {
-                ...data,
-                senderPeerId: this.myPeerId,
-            });
-        }
-    }
-
-    // ════════════════════════════════════════════
-    // WebRTC Connection Management
-    // ════════════════════════════════════════════
-
-    /**
-     * Broadcaster: handle new viewer requesting connection
-     */
-    async _handleViewerReady(data) {
-        const viewerPeerId = data.peerId;
-        console.log('[WebRTC-LL] Viewer ready:', viewerPeerId);
-
-        try {
-            // Create peer connection for this viewer
-            const pc = this._createPeerConnection(viewerPeerId);
-
-            // Add local tracks
-            if (this.localStream) {
-                this.localStream.getTracks().forEach(track => {
-                    pc.addTrack(track, this.localStream);
-                });
+        this.channel.listenForWhisper("webrtc-signal", (data) => {
+            const evt = data?.signalEvent || data?.payload?.signalEvent;
+            // Server-relay is the source of truth for media signaling.
+            if (evt === "webrtc-offer" || evt === "webrtc-answer" || evt === "webrtc-ice") {
+                return;
             }
+            this._handleRelayedSignal(data);
+        });
+    }
 
-            // Create and send offer
-            const offer = await pc.createOffer({
-                offerToReceiveAudio: false,
-                offerToReceiveVideo: false,
-            });
-            await pc.setLocalDescription(offer);
+    _handleRelayedSignal(rawData) {
+        if (!rawData || rawData.senderPeerId === this.myPeerId) {
+            return;
+        }
 
-            this._sendSignal('webrtc-offer', {
-                targetPeerId: viewerPeerId,
-                offer: pc.localDescription,
-            });
+        const data = this._normalizeSignal(rawData);
+        if (!data) return;
+        if (data.targetPeerId && data.targetPeerId !== this.myPeerId) {
+            return;
+        }
 
-            console.log('[WebRTC-LL] Offer sent to:', viewerPeerId);
+        if (data.signalId) {
+            if (this.handledSignalIds.has(data.signalId)) {
+                return;
+            }
+            this.handledSignalIds.add(data.signalId);
+            if (this.handledSignalIds.size > 300) {
+                this.handledSignalIds.clear();
+            }
+        }
 
-        } catch (error) {
-            console.error('[WebRTC-LL] Error handling viewer:', error);
+        if (this.isBroadcaster) {
+            if (data.signalEvent === "viewer-ready") {
+                this._handleViewerReady(data).catch(console.error);
+            } else if (data.signalEvent === "webrtc-answer") {
+                this._handleAnswer(data).catch(console.error);
+            } else if (data.signalEvent === "webrtc-ice") {
+                this._handleIceCandidate(data).catch(console.error);
+            }
+            return;
+        }
+
+        if (data.signalEvent === "broadcaster-ready") {
+            this._sendViewerReady();
+        } else if (data.signalEvent === "webrtc-offer") {
+            this._handleOffer(data).catch(console.error);
+        } else if (data.signalEvent === "webrtc-ice") {
+            this._handleIceCandidate(data).catch(console.error);
         }
     }
 
-    /**
-     * Viewer: handle offer from broadcaster
-     */
-    async _handleOffer(data) {
-        const broadcasterPeerId = data.senderPeerId;
-        console.log('[WebRTC-LL] Offer received from:', broadcasterPeerId);
-
-        try {
-            const pc = this._createPeerConnection(broadcasterPeerId);
-
-            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-
-            this._sendSignal('webrtc-answer', {
-                targetPeerId: broadcasterPeerId,
-                answer: pc.localDescription,
-            });
-
-            console.log('[WebRTC-LL] Answer sent to:', broadcasterPeerId);
-
-        } catch (error) {
-            console.error('[WebRTC-LL] Error handling offer:', error);
-        }
+    _normalizeSignal(raw) {
+        const payload = raw.payload && typeof raw.payload === "object" ? raw.payload : {};
+        const signalEvent = raw.signalEvent || payload.signalEvent;
+        if (!signalEvent) return null;
+        const offer = this._normalizeSessionDescription(raw.offer || payload.offer || null, "offer");
+        const answer = this._normalizeSessionDescription(raw.answer || payload.answer || null, "answer");
+        return {
+            ...payload,
+            ...raw,
+            signalEvent,
+            offer,
+            answer,
+            candidate: raw.candidate || payload.candidate || null,
+            targetPeerId: raw.targetPeerId || payload.targetPeerId || null
+        };
     }
 
-    /**
-     * Broadcaster: handle answer from viewer
-     */
-    async _handleAnswer(data) {
-        const viewerPeerId = data.senderPeerId;
-        const pc = this.peerConnections.get(viewerPeerId);
+    _normalizeSessionDescription(input, expectedType) {
+        if (!input) return null;
 
-        if (pc) {
-            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-            console.log('[WebRTC-LL] Answer received from:', viewerPeerId);
-        }
-    }
-
-    /**
-     * Handle ICE candidate from remote peer
-     */
-    async _handleIceCandidate(data) {
-        const pc = this.peerConnections.get(data.senderPeerId);
-
-        if (pc && data.candidate) {
+        let parsed = input;
+        if (typeof parsed === "string") {
             try {
-                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                parsed = JSON.parse(parsed);
+            } catch (_) {
+                return null;
+            }
+        }
+
+        if (!parsed || typeof parsed !== "object") return null;
+        const type = typeof parsed.type === "string" ? parsed.type : "";
+        let sdp = "";
+        if (typeof parsed.sdp64 === "string" && parsed.sdp64.length) {
+            sdp = this._decodeBase64Utf8(parsed.sdp64);
+        } else if (typeof parsed.sdp === "string") {
+            sdp = parsed.sdp;
+        }
+        if (!type || !sdp) return null;
+        if (expectedType && type !== expectedType) return null;
+
+        sdp = this._decodeSdpText(sdp);
+        if (!sdp) return null;
+
+        // Normalize line endings and trim garbage before SDP preamble.
+        sdp = sdp.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const vIdx = sdp.indexOf("v=0");
+        if (vIdx > 0) {
+            sdp = sdp.slice(vIdx);
+        }
+        sdp = this._repairSdpLines(sdp);
+        if (!sdp.startsWith("v=0")) return null;
+
+        return { type, sdp };
+    }
+
+    _encodeSessionDescription(desc) {
+        if (!desc || typeof desc !== "object") return null;
+        if (typeof desc.type !== "string" || typeof desc.sdp !== "string") return null;
+        return {
+            type: desc.type,
+            sdp64: this._encodeBase64Utf8(desc.sdp)
+        };
+    }
+
+    _encodeBase64Utf8(str) {
+        try {
+            return btoa(unescape(encodeURIComponent(str)));
+        } catch (_) {
+            return "";
+        }
+    }
+
+    _decodeBase64Utf8(base64) {
+        try {
+            return decodeURIComponent(escape(atob(base64)));
+        } catch (_) {
+            return "";
+        }
+    }
+
+    _decodeSdpText(sdp) {
+        if (!sdp || typeof sdp !== "string") return "";
+
+        let text = sdp.trim();
+
+        // Unwrap accidental surrounding quotes repeatedly.
+        for (let i = 0; i < 3; i += 1) {
+            if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+                text = text.slice(1, -1).trim();
+                continue;
+            }
+            break;
+        }
+
+        // Try JSON string decode if relay double-encoded SDP text.
+        for (let i = 0; i < 2; i += 1) {
+            if ((text.startsWith('"') && text.endsWith('"')) || text.includes("\\u000d") || text.includes("\\r\\n")) {
+                try {
+                    const decoded = JSON.parse(text);
+                    if (typeof decoded === "string" && decoded.length) {
+                        text = decoded;
+                        continue;
+                    }
+                } catch (_) {}
+            }
+            break;
+        }
+
+        // Decode escaped newlines/unicode literals that remain as plain text.
+        text = text
+            .replace(/\\u000d\\u000a/g, "\n")
+            .replace(/\\u000a/g, "\n")
+            .replace(/\\u000d/g, "\n")
+            .replace(/\\r\\n/g, "\n")
+            .replace(/\\n/g, "\n")
+            .replace(/\\r/g, "\n")
+            .replace(/\\"/g, '"');
+
+        return text;
+    }
+
+    _repairSdpLines(rawSdp) {
+        if (!rawSdp || typeof rawSdp !== "string") return "";
+
+        const allowedPrefixes = new Set(["v", "o", "s", "i", "u", "e", "p", "c", "b", "t", "r", "z", "k", "a", "m"]);
+        const cleaned = [];
+        let normalized = rawSdp;
+
+        // Some malformed payloads come as one long line or CSV-like chunks:
+        // "v=0,o=- ...,s=-,t=0 0,a=group:BUNDLE ..."
+        // Force separators before each SDP field token.
+        normalized = normalized
+            .replace(/","/g, "\n")
+            .replace(/',\s*'/g, "\n")
+            .replace(/,\s*(?=[vosiuepcbtrzkam]=)/gi, "\n")
+            .replace(/\s+(?=[vosiuepcbtrzkam]=)/gi, "\n");
+
+        const lines = normalized.split("\n");
+        for (let line of lines) {
+            line = String(line || "").trim();
+            if (!line) continue;
+
+            // Remove wrappers often introduced by double serialization.
+            line = line.replace(/^,+|,+$/g, "");
+            line = line.replace(/^"+|"+$/g, "");
+            line = line.replace(/^'+|'+$/g, "");
+            line = line.trim();
+            if (!line) continue;
+
+            // Keep only valid SDP field lines (x=...).
+            if (line.length < 3 || line[1] !== "=" || !allowedPrefixes.has(line[0])) {
+                continue;
+            }
+
+            cleaned.push(line);
+        }
+
+        return cleaned.join("\r\n");
+    }
+
+    _startViewerReadyLoop() {
+        clearInterval(this.viewerReadyTimer);
+        this.viewerReadyDeadline = Date.now() + 20000;
+        this._sendViewerReady();
+
+        this.viewerReadyTimer = setInterval(() => {
+            if (Date.now() > this.viewerReadyDeadline || this._hasConnectedPeer()) {
+                clearInterval(this.viewerReadyTimer);
+                this.viewerReadyTimer = null;
+                return;
+            }
+            this._sendViewerReady();
+        }, 2000);
+    }
+
+    _sendViewerReady() {
+        this._sendSignal("viewer-ready", { peerId: this.myPeerId });
+    }
+
+    _scheduleMediaRelayFallback() {
+        if (this.isBroadcaster) return;
+        clearTimeout(this.mediaRelayFallbackTimer);
+        this.mediaRelayFallbackTimer = setTimeout(() => {
+            if (this._hasConnectedPeer()) {
+                return;
+            }
+            // Retry viewer-ready if offer did not arrive yet.
+            this._sendViewerReady();
+        }, 3500);
+    }
+
+    async _handleViewerReady(data) {
+        const viewerPeerId = data.peerId || data.senderPeerId;
+        if (!viewerPeerId) return;
+        if (this.peerConnections.has(viewerPeerId)) return;
+
+        const pc = this._createPeerConnection(viewerPeerId);
+        if (this.localStream) {
+            this.localStream.getTracks().forEach((track) => pc.addTrack(track, this.localStream));
+        }
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        this._sendSignal("webrtc-offer", {
+            offer: this._encodeSessionDescription(pc.localDescription),
+            targetPeerId: viewerPeerId
+        });
+    }
+
+    async _handleOffer(data) {
+        const peerId = data.senderPeerId;
+        if (!data.offer) {
+            return;
+        }
+        let pc = this._createPeerConnection(peerId);
+
+        // Repeated offers can arrive while the current connection is already stable.
+        // Ignore exact duplicates, otherwise rebuild peer connection for a clean negotiation.
+        if (pc.remoteDescription && pc.signalingState === "stable") {
+            const currentRemote = pc.remoteDescription;
+            const sameOffer = currentRemote.type === "offer" &&
+                data.offer &&
+                currentRemote.sdp === data.offer.sdp;
+
+            if (sameOffer) {
+                return;
+            }
+
+            this._handlePeerDisconnect(peerId);
+            pc = this._createPeerConnection(peerId);
+        }
+
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        } catch (error) {
+            console.warn("[WebRTC-LL] Invalid offer SDP received", error, data.offer);
+            return;
+        }
+        await this._flushPendingIce(peerId);
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        this._sendSignal("webrtc-answer", {
+            answer: this._encodeSessionDescription(pc.localDescription),
+            targetPeerId: peerId
+        });
+    }
+
+    async _handleAnswer(data) {
+        const peerId = data.senderPeerId;
+        const pc = this.peerConnections.get(peerId);
+        if (!pc || !data.answer) return;
+
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+        } catch (error) {
+            console.warn("[WebRTC-LL] Invalid answer SDP received", error, data.answer);
+            return;
+        }
+        await this._flushPendingIce(peerId);
+    }
+
+    async _handleIceCandidate(data) {
+        const peerId = data.senderPeerId;
+        const pc = this.peerConnections.get(peerId);
+        if (!data.candidate) return;
+
+        if (!pc || !pc.remoteDescription) {
+            if (!this.pendingIceCandidates.has(peerId)) {
+                this.pendingIceCandidates.set(peerId, []);
+            }
+            this.pendingIceCandidates.get(peerId).push(data.candidate);
+            return;
+        }
+
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch (error) {
+            console.warn("[WebRTC-LL] ICE add failed", error);
+        }
+    }
+
+    async _flushPendingIce(peerId) {
+        const pc = this.peerConnections.get(peerId);
+        const list = this.pendingIceCandidates.get(peerId) || [];
+        this.pendingIceCandidates.delete(peerId);
+        if (!pc || !pc.remoteDescription || !list.length) return;
+
+        for (const candidate of list) {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
             } catch (error) {
-                console.error('[WebRTC-LL] ICE candidate error:', error);
+                console.warn("[WebRTC-LL] Pending ICE add failed", error);
             }
         }
     }
 
-    /**
-     * Create a new RTCPeerConnection for a specific peer
-     */
     _createPeerConnection(peerId) {
-        // Close existing connection if any
         if (this.peerConnections.has(peerId)) {
-            this.peerConnections.get(peerId).close();
+            return this.peerConnections.get(peerId);
         }
 
         const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+        this.peerConnections.set(peerId, pc);
 
-        // ICE candidates → send to remote peer
         pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                this._sendSignal('webrtc-ice', {
-                    targetPeerId: peerId,
-                    candidate: event.candidate,
-                });
-            }
+            if (!event.candidate) return;
+            this._sendSignal("webrtc-ice", {
+                candidate: event.candidate.toJSON(),
+                targetPeerId: peerId
+            });
         };
 
-        // Connection state monitoring
-        pc.onconnectionstatechange = () => {
-            console.log(`[WebRTC-LL] Connection (${peerId}): ${pc.connectionState}`);
-
-            if (pc.connectionState === 'connected') {
-                this._onPeerConnected(peerId);
-            } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-                this._handlePeerDisconnect(peerId);
-            }
-        };
-
-        // Receive remote tracks (viewer side)
-        pc.ontrack = (event) => {
-            console.log('[WebRTC-LL] Remote track received:', event.track.kind);
-
-            if (this.remoteVideoElement && event.streams[0]) {
+        if (!this.isBroadcaster) {
+            pc.ontrack = (event) => {
+                if (!this.remoteVideoElement || !event.streams[0]) return;
                 this.remoteVideoElement.srcObject = event.streams[0];
                 this.remoteVideoElement.play().catch(() => {});
+                window.dispatchEvent(new CustomEvent("webrtc-peer-connected"));
+            };
+        }
+
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "failed" || pc.connectionState === "closed" || pc.connectionState === "disconnected") {
+                this.peerConnections.delete(peerId);
             }
         };
 
-        this.peerConnections.set(peerId, pc);
         return pc;
     }
 
-    _onPeerConnected(peerId) {
-        console.log(`[WebRTC-LL] ✅ Peer connected: ${peerId}`);
+    _sendSignal(signalEvent, payload = {}) {
+        const data = {
+            signalId: `${this.myPeerId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            senderPeerId: this.myPeerId,
+            signalEvent,
+            ...payload
+        };
 
-        // Dispatch custom event for UI updates
-        window.dispatchEvent(new CustomEvent('webrtc-peer-connected', {
-            detail: { peerId, streamId: this.streamId }
-        }));
+        if (this.channel) {
+            const isMediaSignal = signalEvent === "webrtc-offer" || signalEvent === "webrtc-answer" || signalEvent === "webrtc-ice";
+            if (!isMediaSignal) {
+                this.channel.whisper("webrtc-signal", data);
+            }
+        }
+
+        this._apiCall(`/webrtc/stream/${this.streamId}/signal`, "POST", {
+            senderPeerId: this.myPeerId,
+            signalEvent,
+            payload
+        }).catch(() => {});
+    }
+
+    _hasConnectedPeer() {
+        for (const pc of this.peerConnections.values()) {
+            if (pc.connectionState === "connected" || pc.connectionState === "completed") return true;
+        }
+        return false;
     }
 
     _handlePeerDisconnect(peerId) {
@@ -345,107 +523,62 @@ class WebRTCLowLatency {
             pc.close();
             this.peerConnections.delete(peerId);
         }
-
-        console.log(`[WebRTC-LL] Peer disconnected: ${peerId}`);
-
-        window.dispatchEvent(new CustomEvent('webrtc-peer-disconnected', {
-            detail: { peerId, streamId: this.streamId }
-        }));
     }
 
-    // ════════════════════════════════════════════
-    // Cleanup
-    // ════════════════════════════════════════════
+    async _apiCall(url, method, body = null) {
+        const response = await fetch(url, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": this._getCsrfToken(),
+                "X-Requested-With": "XMLHttpRequest",
+                Accept: "application/json"
+            },
+            credentials: "same-origin",
+            body: body ? JSON.stringify(body) : null
+        });
 
-    async stop() {
-        console.log('[WebRTC-LL] Stopping...');
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`WebRTC API ${response.status}: ${text.slice(0, 160)}`);
+        }
 
-        // Close all peer connections
-        for (const [peerId, pc] of this.peerConnections) {
+        return response.json();
+    }
+
+    _getCsrfToken() {
+        const token = document.querySelector('meta[name="csrf-token"]');
+        return token ? token.getAttribute("content") : "";
+    }
+
+    _generatePeerId() {
+        return `peer_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
+    }
+
+    cleanup() {
+        clearInterval(this.viewerReadyTimer);
+        this.viewerReadyTimer = null;
+        this.viewerReadyDeadline = 0;
+        clearTimeout(this.mediaRelayFallbackTimer);
+        this.mediaRelayFallbackTimer = null;
+
+        for (const pc of this.peerConnections.values()) {
             pc.close();
         }
         this.peerConnections.clear();
+        this.pendingIceCandidates.clear();
+        this.useRelayForMediaSignals = true;
 
-        // Stop local media
         if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream.getTracks().forEach((track) => track.stop());
             this.localStream = null;
         }
 
-        // Leave signaling channel
         if (this.channel && window.Echo) {
             window.Echo.leave(`presence-stream.${this.streamId}`);
-            this.channel = null;
         }
-
-        // Notify Laravel
-        if (this.streamId) {
-            const endpoint = this.isBroadcaster
-                ? `/api/stream/${this.streamId}/stop-broadcast`
-                : `/api/stream/${this.streamId}/leave-viewer`;
-            await this._apiCall(endpoint, 'POST');
-        }
-    }
-
-    // ════════════════════════════════════════════
-    // Utilities
-    // ════════════════════════════════════════════
-
-    _generatePeerId() {
-        return 'peer_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
-    }
-
-    async _apiCall(url, method = 'GET', body = null) {
-        try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-            const options = {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-            };
-            if (csrfToken) options.headers['X-CSRF-TOKEN'] = csrfToken;
-            if (body) options.body = JSON.stringify(body);
-
-            const res = await fetch(url, options);
-            return res.ok ? await res.json() : null;
-        } catch (e) {
-            console.error('[WebRTC-LL] API error:', e);
-            return null;
-        }
-    }
-
-    /**
-     * Get stats for monitoring
-     */
-    async getStats() {
-        const stats = {
-            peerId: this.myPeerId,
-            isBroadcaster: this.isBroadcaster,
-            connectedPeers: this.peerConnections.size,
-            peers: {},
-        };
-
-        for (const [peerId, pc] of this.peerConnections) {
-            const rtcStats = await pc.getStats();
-            const peerStats = { state: pc.connectionState };
-
-            rtcStats.forEach(report => {
-                if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                    peerStats.roundTripTime = report.currentRoundTripTime;
-                    peerStats.bytesSent = report.bytesSent;
-                    peerStats.bytesReceived = report.bytesReceived;
-                }
-            });
-
-            stats.peers[peerId] = peerStats;
-        }
-
-        return stats;
+        this.channel = null;
     }
 }
 
-// Export globally
 window.WebRTCLowLatency = WebRTCLowLatency;
-console.log('[WebRTC-LL] 🚀 Module loaded');

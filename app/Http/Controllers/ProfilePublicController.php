@@ -59,7 +59,12 @@ class ProfilePublicController extends Controller
             ->latest()
             ->paginate(12);
 
-        $activeStream = $model->streams()->whereIn('status', ['live', 'paused'])->first();
+        $activeStream = $model->streams()
+            ->whereIn('status', ['live', 'paused'])
+            ->orderByRaw("CASE WHEN status = 'live' THEN 0 ELSE 1 END")
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->first();
 
         $relatedModels = User::where('role', 'model')
             ->whereHas('profile', function ($query) {

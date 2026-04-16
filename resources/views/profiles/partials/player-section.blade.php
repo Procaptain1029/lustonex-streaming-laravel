@@ -59,6 +59,10 @@
                         // URL del HLS servido por Laravel desde public/hls/live/
                         $hlsUrl = asset('hls/live/' . $model->profile->stream_key . '/index.m3u8');
                     @endphp
+                    <div id="profilePlaybackModeBadge"
+                        style="position:absolute; top:12px; left:12px; z-index:30; background:rgba(0,0,0,0.7); color:#fff; font-size:11px; font-weight:700; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.2);">
+                        Mode: Connecting...
+                    </div>
                     <video id="hlsProfilePlayer" class="w-full h-full object-contain" data-url="{{ $hlsUrl }}"
                         autoplay muted playsinline></video>
                     

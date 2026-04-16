@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\WebRTCSignalRelay;
 use App\Models\Stream;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -147,6 +148,31 @@ class StreamingController extends Controller
             'message' => __('admin.flash.streaming.disconnected'),
             'viewers_count' => $stream->viewers_count
         ]);
+    }
+
+    public function relayWebRTCSignal(Request $request, $streamId)
+    {
+        $stream = Stream::findOrFail($streamId);
+
+        if (!in_array($stream->status, ['live', 'paused'], true)) {
+            return response()->json(['success' => false, 'message' => 'Stream not active'], 422);
+        }
+
+        $validated = $request->validate([
+            'senderPeerId' => 'required|string|max:100',
+            'signalEvent' => 'required|string|in:viewer-ready,broadcaster-ready,webrtc-offer,webrtc-answer,webrtc-ice',
+            'payload' => 'nullable|array',
+        ]);
+
+        broadcast(new WebRTCSignalRelay(
+            streamId: (int) $stream->id,
+            senderUserId: (int) auth()->id(),
+            senderPeerId: $validated['senderPeerId'],
+            signalEvent: $validated['signalEvent'],
+            payload: $validated['payload'] ?? []
+        ))->toOthers();
+
+        return response()->json(['success' => true]);
     }
 
 

@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\WithdrawalManagementController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\StreamingController;
 use App\Http\Controllers\Admin\StreamManagementController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -322,6 +323,14 @@ Route::post('/stream/{stream}/tip', [StreamViewController::class, 'sendTip'])
 Route::post('/chat/{message}/hide', [StreamViewController::class, 'hideMessage'])
     ->middleware('auth')
     ->name('chat.hide');
+
+Route::middleware(['auth'])->prefix('webrtc/stream/{streamId}')->group(function () {
+    Route::post('/signal', [StreamingController::class, 'relayWebRTCSignal']);
+    Route::post('/start-broadcast', [StreamingController::class, 'startBroadcast']);
+    Route::post('/stop-broadcast', [StreamingController::class, 'stopBroadcast']);
+    Route::post('/join-viewer', [StreamingController::class, 'joinAsViewer']);
+    Route::post('/leave-viewer', [StreamingController::class, 'leaveAsViewer']);
+});
 
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {

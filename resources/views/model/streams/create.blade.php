@@ -562,8 +562,8 @@
 
 
             <div style="text-align: center; margin-top: 4rem;">
-                <button type="submit" class="btn-main-start" id="startBtn" disabled>
-                    <i class="fas fa-lock"></i> {{ __('model.streams.create.btn_start') }}
+                <button type="submit" class="btn-main-start" id="startBtn">
+                    <i class="fas fa-broadcast-tower"></i> {{ __('model.streams.create.btn_start_live') }}
                 </button>
                 <p style="color: rgba(255,255,255,0.3); font-size: 0.85rem; margin-top: 1rem;">
                     {{ __('model.streams.create.hint_start') }}
@@ -705,7 +705,6 @@
                     statusBox.innerHTML = '<i class="fas fa-check-circle" style="color: #28a745;"></i> {{ __('model.streams.create.status_success') }}';
                     statusBox.className = 'test-status status-success';
 
-                    startBtn.disabled = false;
                     startBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> {{ __('model.streams.create.btn_start_live') }}';
 
                     // Detener el polling una vez detectado
