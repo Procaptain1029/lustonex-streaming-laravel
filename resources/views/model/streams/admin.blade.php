@@ -137,7 +137,8 @@
         .player-container {
             position: relative;
             width: 100%;
-            height: calc(100% - 140px); /* Leave room for shortcuts */
+            flex: 1;
+            min-height: 0;
             background: #000;
             display: flex;
             align-items: center;
@@ -181,6 +182,7 @@
         /* SHORTCUTS / ATAJOS (Twitch style TILES) */
         .shortcuts-section {
             height: 140px;
+            flex-shrink: 0;
             padding: 1rem;
             border-top: 1px solid var(--twitch-border);
             background: var(--twitch-bg);
@@ -535,9 +537,9 @@
                         <div class="tile-icon"><i class="fas fa-sync-alt"></i></div>
                         <div class="tile-text">{{ __('model.streams.admin.refresh_player') }}</div>
                     </button>
-                    <button class="shortcut-tile active-bg" type="button" onclick="toggleWebRtcAdminPreview()">
+                    <button id="adminWebRtcToggleBtn" class="shortcut-tile active-bg" type="button" onclick="toggleWebRtcAdminPreview()">
                         <div class="tile-icon"><i class="fas fa-satellite-dish"></i></div>
-                        <div class="tile-text">Go Live<br>WebRTC</div>
+                        <div id="adminWebRtcToggleLabel" class="tile-text">Go Live<br>WebRTC</div>
                     </button>
 
                     <form action="{{ route('model.streams.end', $stream) }}" method="POST" id="endStreamForm" style="margin: 0;">
@@ -668,11 +670,34 @@
     <script>
         let hls = null;
         let adminWebRtc = null;
+        // UI starts in manual mode: show "Go Live WebRTC" until the button successfully starts it.
         let adminWebRtcRunning = false;
         let streamId = {{ $stream->id }};
         let lastMessageId = {{ $stream->chatMessages->last()->id ?? 0 }};
         let currentUserId = {{ auth()->id() }};
         let pauseMode = '{{ auth()->user()->profile->pause_mode ?? 'none' }}';
+
+        function updateAdminWebRtcToggleUI() {
+            const btn = document.getElementById('adminWebRtcToggleBtn');
+            const label = document.getElementById('adminWebRtcToggleLabel');
+            const icon = btn ? btn.querySelector('.tile-icon i') : null;
+            if (!btn || !label || !icon) return;
+
+            if (adminWebRtcRunning) {
+                btn.classList.remove('active-bg');
+                btn.classList.add('danger-bg');
+                icon.className = 'fas fa-stop-circle';
+                label.innerHTML = 'Stop Live<br>WebRTC';
+                return;
+            }
+
+            btn.classList.remove('danger-bg');
+            btn.classList.add('active-bg');
+            icon.className = 'fas fa-satellite-dish';
+            label.innerHTML = 'Go Live<br>WebRTC';
+        }
+
+        updateAdminWebRtcToggleUI();
 
         async function toggleWebRtcAdminPreview() {
             const video = document.getElementById('hlsMainPlayer');
@@ -683,11 +708,14 @@
                     adminWebRtc = adminWebRtc || new WebRTCLowLatency();
                     await adminWebRtc.startBroadcast(streamId, video);
                     adminWebRtcRunning = true;
+                    updateAdminWebRtcToggleUI();
 
                     if (placeholder) placeholder.style.display = 'none';
                     if (video) video.style.display = '';
                 } catch (error) {
                     console.error('WebRTC start failed:', error);
+                    adminWebRtcRunning = false;
+                    updateAdminWebRtcToggleUI();
                     Swal.fire({ icon: 'error', title: 'WebRTC', text: error.message || 'Could not start WebRTC broadcast' });
                 }
                 return;
@@ -700,6 +728,7 @@
             }
 
             adminWebRtcRunning = false;
+            updateAdminWebRtcToggleUI();
         }
 
         function initHls() {

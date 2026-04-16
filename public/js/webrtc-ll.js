@@ -2,6 +2,7 @@ class WebRTCLowLatency {
     constructor() {
         this.peerConnections = new Map();
         this.pendingIceCandidates = new Map();
+        this.videoSenders = new Map();
         this.localStream = null;
         this.streamId = null;
         this.isBroadcaster = false;
@@ -20,6 +21,20 @@ class WebRTCLowLatency {
             { urls: "stun:stun1.l.google.com:19302" },
             { urls: "stun:stun2.l.google.com:19302" }
         ];
+
+        // Startup-oriented capture profile for faster first frame.
+        this.videoStartupConstraints = {
+            width: { ideal: 960, max: 1280 },
+            height: { ideal: 540, max: 720 },
+            frameRate: { ideal: 24, max: 30 },
+        };
+        // Upgrade profile after connection stabilizes.
+        this.videoSteadyConstraints = {
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+        };
+        this.qualityUpgradeTimer = null;
     }
 
     async startBroadcast(streamId, videoElement) {
@@ -27,9 +42,16 @@ class WebRTCLowLatency {
         this.isBroadcaster = true;
 
         this.localStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+            video: this.videoStartupConstraints,
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
+
+        const videoTrack = this.localStream.getVideoTracks?.()[0];
+        if (videoTrack) {
+            try {
+                videoTrack.contentHint = "motion";
+            } catch (_) {}
+        }
 
         if (videoElement) {
             videoElement.srcObject = this.localStream;
@@ -38,7 +60,8 @@ class WebRTCLowLatency {
         }
 
         await this._joinSignalingChannel(streamId);
-        await this._apiCall(`/webrtc/stream/${streamId}/start-broadcast`, "POST");
+        // Do not block signaling on lifecycle API response.
+        this._apiCall(`/webrtc/stream/${streamId}/start-broadcast`, "POST").catch(() => {});
         this._sendSignal("broadcaster-ready", { peerId: this.myPeerId });
 
         return { success: true, mode: "webrtc" };
@@ -58,9 +81,9 @@ class WebRTCLowLatency {
         this.remoteVideoElement = videoElement;
 
         await this._joinSignalingChannel(streamId);
-        await this._apiCall(`/webrtc/stream/${streamId}/join-viewer`, "POST");
-
+        // Start signaling immediately; do not wait for join API.
         this._startViewerReadyLoop();
+        this._apiCall(`/webrtc/stream/${streamId}/join-viewer`, "POST").catch(() => {});
         this._scheduleMediaRelayFallback();
         return { success: true, mode: "webrtc" };
     }
@@ -106,11 +129,6 @@ class WebRTCLowLatency {
             });
 
         this.channel.listenForWhisper("webrtc-signal", (data) => {
-            const evt = data?.signalEvent || data?.payload?.signalEvent;
-            // Server-relay is the source of truth for media signaling.
-            if (evt === "webrtc-offer" || evt === "webrtc-answer" || evt === "webrtc-ice") {
-                return;
-            }
             this._handleRelayedSignal(data);
         });
     }
@@ -338,8 +356,19 @@ class WebRTCLowLatency {
 
     _startViewerReadyLoop() {
         clearInterval(this.viewerReadyTimer);
-        this.viewerReadyDeadline = Date.now() + 20000;
+        this.viewerReadyDeadline = Date.now() + 12000;
         this._sendViewerReady();
+
+        // Front-load ready signals for faster first offer on fresh joins.
+        let burstCount = 0;
+        const burstTimer = setInterval(() => {
+            if (this._hasConnectedPeer() || burstCount >= 5) {
+                clearInterval(burstTimer);
+                return;
+            }
+            burstCount += 1;
+            this._sendViewerReady();
+        }, 220);
 
         this.viewerReadyTimer = setInterval(() => {
             if (Date.now() > this.viewerReadyDeadline || this._hasConnectedPeer()) {
@@ -348,7 +377,7 @@ class WebRTCLowLatency {
                 return;
             }
             this._sendViewerReady();
-        }, 2000);
+        }, 700);
     }
 
     _sendViewerReady() {
@@ -375,6 +404,14 @@ class WebRTCLowLatency {
         const pc = this._createPeerConnection(viewerPeerId);
         if (this.localStream) {
             this.localStream.getTracks().forEach((track) => pc.addTrack(track, this.localStream));
+            this.localStream.getTracks().forEach((track) => {
+                if (track.kind !== "video") return;
+                const sender = pc.getSenders().find((s) => s.track === track);
+                if (sender) {
+                    this.videoSenders.set(viewerPeerId, sender);
+                    this._applyStartupSenderParams(sender);
+                }
+            });
         }
 
         const offer = await pc.createOffer();
@@ -497,7 +534,12 @@ class WebRTCLowLatency {
             return this.peerConnections.get(peerId);
         }
 
-        const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+        const pc = new RTCPeerConnection({
+            iceServers: this.iceServers,
+            bundlePolicy: "max-bundle",
+            rtcpMuxPolicy: "require",
+            iceCandidatePoolSize: this.isBroadcaster ? 4 : 2,
+        });
         this.peerConnections.set(peerId, pc);
 
         pc.onicecandidate = (event) => {
@@ -519,6 +561,9 @@ class WebRTCLowLatency {
         }
 
         pc.onconnectionstatechange = () => {
+            if (this.isBroadcaster && pc.connectionState === "connected") {
+                this._scheduleQualityUpgrade();
+            }
             if (pc.connectionState === "failed" || pc.connectionState === "closed" || pc.connectionState === "disconnected") {
                 this.peerConnections.delete(peerId);
             }
@@ -558,8 +603,64 @@ class WebRTCLowLatency {
                         if (second && typeof second.catch === "function") second.catch(() => {});
                     } catch (_) {}
                 }, 350);
+                // Third nudge to reduce "black before first frame" on slower decoder startup.
+                setTimeout(() => {
+                    try {
+                        const third = sender.generateKeyFrame();
+                        if (third && typeof third.catch === "function") third.catch(() => {});
+                    } catch (_) {}
+                }, 900);
             } catch (_) {}
         });
+    }
+
+    _scheduleQualityUpgrade() {
+        if (!this.isBroadcaster || !this.localStream) return;
+        clearTimeout(this.qualityUpgradeTimer);
+        this.qualityUpgradeTimer = setTimeout(async () => {
+            const videoTrack = this.localStream?.getVideoTracks?.()[0];
+            if (!videoTrack || typeof videoTrack.applyConstraints !== "function") return;
+            try {
+                await videoTrack.applyConstraints(this.videoSteadyConstraints);
+            } catch (_) {
+                // Keep startup profile if browser/device cannot apply upgrade.
+            }
+
+            // Raise sender encoding quality after first-frame phase.
+            this.videoSenders.forEach((sender) => this._applySteadySenderParams(sender));
+        }, 2500);
+    }
+
+    _applyStartupSenderParams(sender) {
+        if (!sender || typeof sender.getParameters !== "function" || typeof sender.setParameters !== "function") return;
+        try {
+            const params = sender.getParameters() || {};
+            if (!params.encodings || !params.encodings.length) {
+                params.encodings = [{}];
+            }
+            const enc = params.encodings[0];
+            enc.maxBitrate = 450_000;
+            enc.maxFramerate = 24;
+            enc.degradationPreference = "maintain-framerate";
+            const p = sender.setParameters(params);
+            if (p && typeof p.catch === "function") p.catch(() => {});
+        } catch (_) {}
+    }
+
+    _applySteadySenderParams(sender) {
+        if (!sender || typeof sender.getParameters !== "function" || typeof sender.setParameters !== "function") return;
+        try {
+            const params = sender.getParameters() || {};
+            if (!params.encodings || !params.encodings.length) {
+                params.encodings = [{}];
+            }
+            const enc = params.encodings[0];
+            enc.maxBitrate = 1_800_000;
+            enc.maxFramerate = 30;
+            enc.degradationPreference = "balanced";
+            const p = sender.setParameters(params);
+            if (p && typeof p.catch === "function") p.catch(() => {});
+        } catch (_) {}
     }
 
     _sendSignal(signalEvent, payload = {}) {
@@ -571,16 +672,19 @@ class WebRTCLowLatency {
         };
 
         if (this.channel) {
-            const isMediaSignal = signalEvent === "webrtc-offer" || signalEvent === "webrtc-answer" || signalEvent === "webrtc-ice";
-            if (!isMediaSignal) {
-                this.channel.whisper("webrtc-signal", data);
-            }
+            // Fast path: whisper immediately for all signal types.
+            this.channel.whisper("webrtc-signal", data);
         }
 
+        // Reliable path: relay through backend as backup.
+        const relayPayload = {
+            ...payload,
+            signalId: data.signalId,
+        };
         this._apiCall(`/webrtc/stream/${this.streamId}/signal`, "POST", {
             senderPeerId: this.myPeerId,
             signalEvent,
-            payload
+            payload: relayPayload
         }).catch(() => {});
     }
 
@@ -597,6 +701,7 @@ class WebRTCLowLatency {
             pc.close();
             this.peerConnections.delete(peerId);
         }
+        this.videoSenders.delete(peerId);
     }
 
     async _apiCall(url, method, body = null) {
@@ -635,12 +740,15 @@ class WebRTCLowLatency {
         this.viewerReadyDeadline = 0;
         clearTimeout(this.mediaRelayFallbackTimer);
         this.mediaRelayFallbackTimer = null;
+        clearTimeout(this.qualityUpgradeTimer);
+        this.qualityUpgradeTimer = null;
 
         for (const pc of this.peerConnections.values()) {
             pc.close();
         }
         this.peerConnections.clear();
         this.pendingIceCandidates.clear();
+        this.videoSenders.clear();
         this.useRelayForMediaSignals = true;
         this.remoteVideoReadyBound = false;
 
