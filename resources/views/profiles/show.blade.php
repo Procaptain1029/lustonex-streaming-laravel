@@ -2307,10 +2307,17 @@
         document.addEventListener('DOMContentLoaded', () => {
             const video = document.getElementById('hlsProfilePlayer');
             const modeBadge = document.getElementById('profilePlaybackModeBadge');
+            const loadingOverlay = document.getElementById('profileStreamLoadingOverlay');
             const setModeBadge = (label, bgColor = 'rgba(0,0,0,0.7)') => {
                 if (!modeBadge) return;
                 modeBadge.textContent = `Mode: ${label}`;
                 modeBadge.style.background = bgColor;
+            };
+            const showLoadingOverlay = () => {
+                if (loadingOverlay) loadingOverlay.style.display = 'flex';
+            };
+            const hideLoadingOverlay = () => {
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
             };
             if (video) {
                 const url = video.dataset.url;
@@ -2319,6 +2326,15 @@
                 const streamId = {{ $activeStream->id ?? 'null' }};
                 const shouldTryWebRtc = Number.isInteger(streamId);
                 setModeBadge('Connecting...', '#2563eb');
+                showLoadingOverlay();
+
+                const markVideoReady = () => hideLoadingOverlay();
+                video.addEventListener('playing', markVideoReady);
+                video.addEventListener('loadeddata', () => {
+                    if (video.readyState >= 2) {
+                        markVideoReady();
+                    }
+                });
 
                 const startHlsFallback = () => {
                     if (hlsStarted) return;
@@ -2352,6 +2368,7 @@
                             hls = null;
                         }
                         setModeBadge('WebRTC (Low Latency)', '#15803d');
+                        markVideoReady();
                     }, { once: true });
 
                     setTimeout(() => {

@@ -63,6 +63,12 @@
                         style="position:absolute; top:12px; left:12px; z-index:30; background:rgba(0,0,0,0.7); color:#fff; font-size:11px; font-weight:700; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.2);">
                         Mode: Connecting...
                     </div>
+                    <div id="profileStreamLoadingOverlay" style="position:absolute; inset:0; z-index:35; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); pointer-events:none;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:10px; background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.25); border-radius:14px; padding:14px 18px; color:#fff;">
+                            <i class="fas fa-spinner fa-spin" style="font-size:20px; color:#d4af37;"></i>
+                            <span style="font-size:12px; font-weight:700; letter-spacing:.2px;">Connecting stream...</span>
+                        </div>
+                    </div>
                     <video id="hlsProfilePlayer" class="w-full h-full object-contain" data-url="{{ $hlsUrl }}"
                         autoplay muted playsinline></video>
                     
