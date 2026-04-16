@@ -7,6 +7,7 @@ use App\Models\Stream;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class StreamingController extends Controller
 {
@@ -164,15 +165,124 @@ class StreamingController extends Controller
             'payload' => 'nullable|array',
         ]);
 
+        $signalEvent = $validated['signalEvent'];
+        $payload = $validated['payload'] ?? [];
+
+        // Pusher broadcast payloads are small (~10KB). Full WebRTC SDP offers/answers exceed that and get
+        // truncated, which breaks setRemoteDescription. Store heavy signals in cache; broadcast only relayId.
+        $heavyEvents = ['webrtc-offer', 'webrtc-answer'];
+        if (in_array($signalEvent, $heavyEvents, true)) {
+            $relayId = (string) Str::uuid();
+            // Persist outside Laravel cache: file cache can be cleared or misconfigured; large SDP must survive until GET.
+            $this->storeWebRtcRelayFile($relayId, [
+                'stream_id' => (int) $stream->id,
+                'sender_peer_id' => $validated['senderPeerId'],
+                'signal_event' => $signalEvent,
+                'payload' => $payload,
+            ]);
+
+            broadcast(new WebRTCSignalRelay(
+                streamId: (int) $stream->id,
+                senderUserId: (int) auth()->id(),
+                senderPeerId: $validated['senderPeerId'],
+                signalEvent: $signalEvent,
+                payload: ['relayId' => $relayId]
+            ))->toOthers();
+
+            return response()->json(['success' => true]);
+        }
+
         broadcast(new WebRTCSignalRelay(
             streamId: (int) $stream->id,
             senderUserId: (int) auth()->id(),
             senderPeerId: $validated['senderPeerId'],
-            signalEvent: $validated['signalEvent'],
-            payload: $validated['payload'] ?? []
+            signalEvent: $signalEvent,
+            payload: $payload
         ))->toOthers();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Fetch a WebRTC signaling payload stored by relayWebRTCSignal (offer/answer too large for Pusher).
+     */
+    public function fetchWebRtcRelayPayload($streamId, string $relayId)
+    {
+        $stream = Stream::findOrFail($streamId);
+
+        if (!in_array($stream->status, ['live', 'paused'], true)) {
+            return response()->json(['success' => false, 'message' => 'Stream not active'], 404);
+        }
+
+        $user = auth()->user();
+        $allowed = $user->isAdmin() || (int) $user->id === (int) $stream->user_id || $user->isFan();
+        if (!$allowed) {
+            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+        }
+
+        if (!preg_match('/^[0-9a-f\-]{36}$/i', $relayId)) {
+            return response()->json(['success' => false, 'message' => 'Invalid relay id'], 422);
+        }
+
+        $data = $this->readWebRtcRelayFile($relayId);
+        if (!$data) {
+            return response()->json(['success' => false, 'message' => 'Expired or unknown relay'], 404);
+        }
+
+        if ((int) ($data['stream_id'] ?? 0) !== (int) $stream->id) {
+            return response()->json(['success' => false, 'message' => 'Relay does not belong to this stream'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'senderPeerId' => $data['sender_peer_id'] ?? null,
+            'signalEvent' => $data['signal_event'] ?? null,
+            'payload' => $data['payload'] ?? [],
+        ]);
+    }
+
+    private function webrtcRelayDir(): string
+    {
+        $dir = storage_path('app/webrtc-relays');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        return $dir;
+    }
+
+    private function storeWebRtcRelayFile(string $relayId, array $body): void
+    {
+        if (!preg_match('/^[0-9a-f\-]{36}$/i', $relayId)) {
+            return;
+        }
+        $path = $this->webrtcRelayDir() . DIRECTORY_SEPARATOR . $relayId . '.json';
+        $body['expires_at'] = time() + 600;
+        file_put_contents($path, json_encode($body, JSON_UNESCAPED_UNICODE));
+    }
+
+    private function readWebRtcRelayFile(string $relayId): ?array
+    {
+        if (!preg_match('/^[0-9a-f\-]{36}$/i', $relayId)) {
+            return null;
+        }
+        $path = $this->webrtcRelayDir() . DIRECTORY_SEPARATOR . $relayId . '.json';
+        if (!is_file($path)) {
+            return null;
+        }
+        $raw = json_decode((string) file_get_contents($path), true);
+        if (!is_array($raw)) {
+            @unlink($path);
+
+            return null;
+        }
+        if (($raw['expires_at'] ?? 0) < time()) {
+            @unlink($path);
+
+            return null;
+        }
+
+        return $raw;
     }
 
 

@@ -326,6 +326,8 @@ Route::post('/chat/{message}/hide', [StreamViewController::class, 'hideMessage']
 
 Route::middleware(['auth'])->prefix('webrtc/stream/{streamId}')->group(function () {
     Route::post('/signal', [StreamingController::class, 'relayWebRTCSignal']);
+    Route::get('/relay/{relayId}', [StreamingController::class, 'fetchWebRtcRelayPayload'])
+        ->where('relayId', '[0-9a-fA-F\-]{36}');
     Route::post('/start-broadcast', [StreamingController::class, 'startBroadcast']);
     Route::post('/stop-broadcast', [StreamingController::class, 'stopBroadcast']);
     Route::post('/join-viewer', [StreamingController::class, 'joinAsViewer']);

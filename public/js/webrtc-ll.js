@@ -115,11 +115,39 @@ class WebRTCLowLatency {
     }
 
     _handleRelayedSignal(rawData) {
+        this._handleRelayedSignalImpl(rawData).catch((err) => console.error("[WebRTC-LL] relay error", err));
+    }
+
+    async _handleRelayedSignalImpl(rawData) {
         if (!rawData || rawData.senderPeerId === this.myPeerId) {
             return;
         }
 
-        const data = this._normalizeSignal(rawData);
+        let envelope = rawData;
+        if (rawData.relayId && this.streamId) {
+            const res = await fetch(`/webrtc/stream/${this.streamId}/relay/${encodeURIComponent(rawData.relayId)}`, {
+                method: "GET",
+                headers: {
+                    "X-CSRF-TOKEN": this._getCsrfToken(),
+                    "X-Requested-With": "XMLHttpRequest",
+                    Accept: "application/json",
+                },
+                credentials: "same-origin",
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok || !json.success) {
+                console.warn("[WebRTC-LL] relay fetch failed", res.status, json);
+                return;
+            }
+            envelope = {
+                ...rawData,
+                senderPeerId: json.senderPeerId,
+                signalEvent: json.signalEvent,
+                ...(json.payload || {}),
+            };
+        }
+
+        const data = this._normalizeSignal(envelope);
         if (!data) return;
         if (data.targetPeerId && data.targetPeerId !== this.myPeerId) {
             return;
@@ -167,6 +195,8 @@ class WebRTCLowLatency {
             signalEvent,
             offer,
             answer,
+            rawOffer: raw.offer || payload.offer || null,
+            rawAnswer: raw.answer || payload.answer || null,
             candidate: raw.candidate || payload.candidate || null,
             targetPeerId: raw.targetPeerId || payload.targetPeerId || null
         };
@@ -186,25 +216,24 @@ class WebRTCLowLatency {
 
         if (!parsed || typeof parsed !== "object") return null;
         const type = typeof parsed.type === "string" ? parsed.type : "";
-        let sdp = "";
-        if (typeof parsed.sdp64 === "string" && parsed.sdp64.length) {
-            sdp = this._decodeBase64Utf8(parsed.sdp64);
-        } else if (typeof parsed.sdp === "string") {
-            sdp = parsed.sdp;
-        }
+        const hasSdp64 = typeof parsed.sdp64 === "string" && parsed.sdp64.length > 0;
+        let sdp = hasSdp64 ? this._decodeBase64Utf8(parsed.sdp64) : (typeof parsed.sdp === "string" ? parsed.sdp : "");
         if (!type || !sdp) return null;
         if (expectedType && type !== expectedType) return null;
 
+        if (hasSdp64) {
+            // sdp64 is produced locally from RTCPeerConnection.localDescription.sdp.
+            // Keep it as-is to avoid mutating valid SDP semantics.
+            if (!sdp.startsWith("v=0")) {
+                return null;
+            }
+            return { type, sdp };
+        }
+
+        // Legacy transport fallback: tolerate escaped/newline-wrapped SDP.
         sdp = this._decodeSdpText(sdp);
         if (!sdp) return null;
-
-        // Normalize line endings and trim garbage before SDP preamble.
-        sdp = sdp.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-        const vIdx = sdp.indexOf("v=0");
-        if (vIdx > 0) {
-            sdp = sdp.slice(vIdx);
-        }
-        sdp = this._repairSdpLines(sdp);
+        sdp = this._sdpCanonicalize(sdp);
         if (!sdp.startsWith("v=0")) return null;
 
         return { type, sdp };
@@ -221,7 +250,12 @@ class WebRTCLowLatency {
 
     _encodeBase64Utf8(str) {
         try {
-            return btoa(unescape(encodeURIComponent(str)));
+            const bytes = new TextEncoder().encode(str);
+            let bin = "";
+            for (let i = 0; i < bytes.length; i += 1) {
+                bin += String.fromCharCode(bytes[i]);
+            }
+            return btoa(bin);
         } catch (_) {
             return "";
         }
@@ -229,7 +263,12 @@ class WebRTCLowLatency {
 
     _decodeBase64Utf8(base64) {
         try {
-            return decodeURIComponent(escape(atob(base64)));
+            const bin = atob(base64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i += 1) {
+                bytes[i] = bin.charCodeAt(i);
+            }
+            return new TextDecoder("utf-8").decode(bytes);
         } catch (_) {
             return "";
         }
@@ -276,43 +315,24 @@ class WebRTCLowLatency {
         return text;
     }
 
-    _repairSdpLines(rawSdp) {
+    /**
+     * Only normalize line endings and strip leading junk. Do NOT split on spaces inside SDP
+     * attribute values (that regex previously broke lines like a=ssrc / fingerprint / IN IP4).
+     */
+    _sdpCanonicalize(rawSdp) {
         if (!rawSdp || typeof rawSdp !== "string") return "";
 
-        const allowedPrefixes = new Set(["v", "o", "s", "i", "u", "e", "p", "c", "b", "t", "r", "z", "k", "a", "m"]);
-        const cleaned = [];
-        let normalized = rawSdp;
-
-        // Some malformed payloads come as one long line or CSV-like chunks:
-        // "v=0,o=- ...,s=-,t=0 0,a=group:BUNDLE ..."
-        // Force separators before each SDP field token.
-        normalized = normalized
-            .replace(/","/g, "\n")
-            .replace(/',\s*'/g, "\n")
-            .replace(/,\s*(?=[vosiuepcbtrzkam]=)/gi, "\n")
-            .replace(/\s+(?=[vosiuepcbtrzkam]=)/gi, "\n");
-
-        const lines = normalized.split("\n");
-        for (let line of lines) {
-            line = String(line || "").trim();
-            if (!line) continue;
-
-            // Remove wrappers often introduced by double serialization.
-            line = line.replace(/^,+|,+$/g, "");
-            line = line.replace(/^"+|"+$/g, "");
-            line = line.replace(/^'+|'+$/g, "");
-            line = line.trim();
-            if (!line) continue;
-
-            // Keep only valid SDP field lines (x=...).
-            if (line.length < 3 || line[1] !== "=" || !allowedPrefixes.has(line[0])) {
-                continue;
-            }
-
-            cleaned.push(line);
+        let sdp = rawSdp.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const vIdx = sdp.indexOf("v=0");
+        if (vIdx > 0) {
+            sdp = sdp.slice(vIdx);
         }
 
-        return cleaned.join("\r\n");
+        return sdp
+            .split("\n")
+            .map((line) => String(line || "").trim())
+            .filter((line) => line.length > 0)
+            .join("\r\n");
     }
 
     _startViewerReadyLoop() {
@@ -391,6 +411,21 @@ class WebRTCLowLatency {
         try {
             await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
         } catch (error) {
+            // One retry path for legacy payloads: attempt to normalize raw offer object/string.
+            const fallbackOffer = this._normalizeSessionDescription(data.rawOffer || null, "offer");
+            if (fallbackOffer && fallbackOffer.sdp !== data.offer?.sdp) {
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(fallbackOffer));
+                    await this._flushPendingIce(peerId);
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    this._sendSignal("webrtc-answer", {
+                        answer: this._encodeSessionDescription(pc.localDescription),
+                        targetPeerId: peerId
+                    });
+                    return;
+                } catch (_) {}
+            }
             console.warn("[WebRTC-LL] Invalid offer SDP received", error, data.offer);
             return;
         }

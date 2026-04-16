@@ -5,6 +5,7 @@
 /public/storage
 /public/hls
 /storage/*.key
+/storage/app/webrtc-relays
 /vendor
 .env
 .env.backup

@@ -2301,7 +2301,7 @@
             }
         });
     </script>
-    <script src="{{ asset('js/webrtc-ll.js') }}"></script>
+    <script src="{{ asset('js/webrtc-ll.js') }}?v={{ filemtime(public_path('js/webrtc-ll.js')) }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
