@@ -2367,6 +2367,9 @@
                             hls.destroy();
                             hls = null;
                         }
+                    }, { once: true });
+
+                    window.addEventListener('webrtc-video-ready', () => {
                         setModeBadge('WebRTC (Low Latency)', '#15803d');
                         markVideoReady();
                     }, { once: true });

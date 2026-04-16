@@ -13,6 +13,7 @@ class WebRTCLowLatency {
         this.handledSignalIds = new Set();
         this.useRelayForMediaSignals = true;
         this.mediaRelayFallbackTimer = null;
+        this.remoteVideoReadyBound = false;
 
         this.iceServers = window.WEBRTC_ICE_SERVERS || [
             { urls: "stun:stun.l.google.com:19302" },
@@ -378,6 +379,7 @@ class WebRTCLowLatency {
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        this._requestVideoKeyframe(viewerPeerId);
 
         this._sendSignal("webrtc-offer", {
             offer: this._encodeSessionDescription(pc.localDescription),
@@ -447,6 +449,7 @@ class WebRTCLowLatency {
 
         try {
             await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            this._requestVideoKeyframe(peerId);
         } catch (error) {
             console.warn("[WebRTC-LL] Invalid answer SDP received", error, data.answer);
             return;
@@ -509,6 +512,7 @@ class WebRTCLowLatency {
             pc.ontrack = (event) => {
                 if (!this.remoteVideoElement || !event.streams[0]) return;
                 this.remoteVideoElement.srcObject = event.streams[0];
+                this._bindRemoteVideoReadySignals(this.remoteVideoElement);
                 this.remoteVideoElement.play().catch(() => {});
                 window.dispatchEvent(new CustomEvent("webrtc-peer-connected"));
             };
@@ -521,6 +525,41 @@ class WebRTCLowLatency {
         };
 
         return pc;
+    }
+
+    _bindRemoteVideoReadySignals(videoEl) {
+        if (!videoEl || this.remoteVideoReadyBound) return;
+        this.remoteVideoReadyBound = true;
+
+        const markReady = () => {
+            if (videoEl.readyState >= 2 && !videoEl.paused) {
+                window.dispatchEvent(new CustomEvent("webrtc-video-ready"));
+            }
+        };
+
+        videoEl.addEventListener("loadeddata", markReady);
+        videoEl.addEventListener("playing", markReady);
+    }
+
+    _requestVideoKeyframe(peerId) {
+        if (!this.isBroadcaster) return;
+        const pc = this.peerConnections.get(peerId);
+        if (!pc || typeof pc.getSenders !== "function") return;
+
+        const senders = pc.getSenders().filter((sender) => sender?.track?.kind === "video");
+        senders.forEach((sender) => {
+            if (typeof sender.generateKeyFrame !== "function") return;
+            try {
+                const first = sender.generateKeyFrame();
+                if (first && typeof first.catch === "function") first.catch(() => {});
+                setTimeout(() => {
+                    try {
+                        const second = sender.generateKeyFrame();
+                        if (second && typeof second.catch === "function") second.catch(() => {});
+                    } catch (_) {}
+                }, 350);
+            } catch (_) {}
+        });
     }
 
     _sendSignal(signalEvent, payload = {}) {
@@ -603,6 +642,7 @@ class WebRTCLowLatency {
         this.peerConnections.clear();
         this.pendingIceCandidates.clear();
         this.useRelayForMediaSignals = true;
+        this.remoteVideoReadyBound = false;
 
         if (this.localStream) {
             this.localStream.getTracks().forEach((track) => track.stop());
