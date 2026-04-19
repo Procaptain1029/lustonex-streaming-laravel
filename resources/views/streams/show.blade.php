@@ -709,7 +709,8 @@
             
             <div class="video-section">
                 <div class="video-container">
-                    <video id="remoteVideo" autoplay muted playsinline class="video-player">
+                    <video id="remoteVideo" autoplay muted playsinline class="video-player"
+                        data-broadcast-mode="{{ $stream->broadcast_mode ?? 'browser' }}">
                     </video>
 
                     
@@ -1086,12 +1087,20 @@
 
             const streamUrl = '{{ asset("hls/live/" . $stream->user->profile->stream_key . "/index.m3u8") }}';
             const streamId = {{ $stream->id }};
+            const broadcastMode = String(remoteVideo.dataset.broadcastMode || 'browser').toLowerCase();
+            const isObsStream = broadcastMode === 'obs';
             let hls = null;
             let hlsStarted = false;
 
             const startHlsFallback = () => {
                 if (hlsStarted) return;
                 hlsStarted = true;
+                try {
+                    if (remoteVideo.srcObject) {
+                        remoteVideo.srcObject.getTracks?.().forEach((t) => t.stop());
+                        remoteVideo.srcObject = null;
+                    }
+                } catch (_) {}
                 if (Hls.isSupported()) {
                     hls = new Hls({
                         enableWorker: true,
@@ -1132,7 +1141,7 @@
                 }
             };
 
-            if (window.WebRTCLowLatency) {
+            if (window.WebRTCLowLatency && !isObsStream) {
                 const webrtc = new WebRTCLowLatency();
                 webrtc.joinBroadcast(streamId, remoteVideo).catch(() => startHlsFallback());
                 window.addEventListener('webrtc-peer-connected', () => {

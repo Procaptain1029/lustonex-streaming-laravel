@@ -60,13 +60,16 @@ class ProfilePublicController extends Controller
             ->paginate(12);
 
         $activeStream = $model->streams()
-            ->whereIn('status', ['live', 'paused'])
-            ->orderByRaw("CASE WHEN status = 'live' THEN 0 ELSE 1 END")
+            ->whereIn('status', ['live', 'paused', 'pending'])
+            ->orderByRaw("CASE WHEN status = 'live' THEN 0 WHEN status = 'paused' THEN 1 ELSE 2 END")
             ->orderByDesc('started_at')
             ->orderByDesc('id')
             ->first();
 
-        $fanLivePlayback = $activeStream && in_array($activeStream->status, ['live', 'paused'], true);
+        $hasPlayableStream = $activeStream && in_array($activeStream->status, ['live', 'paused', 'pending'], true);
+
+        $fanLivePlayback = $hasPlayableStream
+            || (bool) ($model->profile && $model->profile->is_streaming && ! $activeStream);
 
         $relatedModels = User::where('role', 'model')
             ->whereHas('profile', function ($query) {

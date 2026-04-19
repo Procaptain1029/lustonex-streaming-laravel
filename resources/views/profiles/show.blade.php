@@ -2282,9 +2282,7 @@
     </div>
 @endsection
 
-@push('scripts')
-    @yield('scripts')
-@endpush
+{{-- Do not @push @yield('scripts'): layouts/public renders @stack then @yield — that duplicates scripts. --}}
 
 @section('scripts')
     <script>
@@ -2325,8 +2323,10 @@
                 let hls = null;
                 let hlsStarted = false;
                 const streamId = {{ $activeStream->id ?? 'null' }};
-                const shouldTryWebRtc = Number.isInteger(streamId);
-                setModeBadge('Connecting...', '#2563eb');
+                const broadcastMode = String(video.dataset.broadcastMode || 'browser').toLowerCase();
+                const isObsStream = broadcastMode === 'obs';
+                const shouldTryWebRtc = Number.isInteger(streamId) && !isObsStream;
+                setModeBadge(isObsStream ? 'HLS (OBS)' : 'Connecting...', isObsStream ? '#b45309' : '#2563eb');
                 showLoadingOverlay();
 
                 const markVideoReady = () => hideLoadingOverlay();
@@ -2348,7 +2348,14 @@
                 const startHlsFallback = () => {
                     if (hlsStarted) return;
                     hlsStarted = true;
-                    setModeBadge('HLS Fallback', '#b45309');
+                    try {
+                        if (video.srcObject) {
+                            const ms = video.srcObject;
+                            ms.getTracks?.().forEach((t) => t.stop());
+                            video.srcObject = null;
+                        }
+                    } catch (_) {}
+                    setModeBadge(isObsStream ? 'HLS (OBS)' : 'HLS Fallback', '#b45309');
                     if (Hls.isSupported()) {
                         hls = new Hls({
                             lowLatencyMode: true,

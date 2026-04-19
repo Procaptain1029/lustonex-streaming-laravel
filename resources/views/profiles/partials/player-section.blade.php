@@ -1,6 +1,6 @@
 @php
-    $fanPlayerVisible = $fanLivePlayback
-        ?? (isset($activeStream) && $activeStream && in_array($activeStream->status, ['live', 'paused'], true));
+    // Do not use `false ?? …` — in PHP, false is not null, so the fallback never runs.
+    $fanPlayerVisible = (bool) ($fanLivePlayback ?? false);
 @endphp
 <div class="player-section">
 
@@ -74,6 +74,9 @@
                         </div>
                     </div>
                     <video id="hlsProfilePlayer" class="w-full h-full object-contain" data-url="{{ $hlsUrl }}"
+                        @if(isset($activeStream) && $activeStream)
+                            data-broadcast-mode="{{ $activeStream->broadcast_mode ?? 'browser' }}"
+                        @endif
                         autoplay muted playsinline></video>
 
                     <!-- Custom bottom bar: volume + fullscreen only (no play/pause — autoplay) -->

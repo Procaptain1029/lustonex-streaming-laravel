@@ -1095,7 +1095,8 @@
 
                     <footer class="stream-create-obs-action-bar">
                         <div class="stream-create-obs-action-bar__inner">
-                            <button type="submit" class="btn-main-start stream-create-obs-action-btn" id="startBtn">
+                            <button type="submit" class="btn-main-start stream-create-obs-action-btn" id="startBtn" disabled
+                                aria-disabled="true">
                                 <i class="fas fa-broadcast-tower"></i> {{ __('model.streams.create.btn_start_live') }}
                             </button>
                             <p class="stream-create-obs-action-hint">{{ __('model.streams.create.hint_start') }}</p>
@@ -1215,6 +1216,11 @@
                         .then(data => {
                             if (data.success) {
                                 document.getElementById('streamKey').value = data.stream_key;
+                                @if($isObsMode)
+                                if (typeof window.__obsStreamCreateAfterRegenerate === 'function') {
+                                    window.__obsStreamCreateAfterRegenerate();
+                                }
+                                @endif
                                 Swal.fire({
                                     icon: 'success',
                                     title: '{{ __('model.streams.create.swal.regenerate_success_title') }}',
@@ -1250,9 +1256,27 @@
             });
         }
 
-        // Detección de señal real
+        @if($isObsMode)
+        // Detección de señal real (solo OBS — evita polling en modo browser donde no existe #connectionStatus)
         let checkInterval = null;
-        const streamKeyToCheck = "{{ $profile->stream_key }}";
+
+        window.__obsStreamCreateAfterRegenerate = function () {
+            const startBtn = document.getElementById('startBtn');
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.setAttribute('aria-disabled', 'true');
+            }
+            const statusBox = document.getElementById('connectionStatus');
+            if (statusBox) {
+                statusBox.className = 'test-status status-waiting';
+                statusBox.innerHTML = '<div class="pulse-amber"></div> {{ __('model.streams.create.status_waiting') }}';
+            }
+            if (checkInterval) {
+                clearInterval(checkInterval);
+                checkInterval = null;
+            }
+            startAutoCheck();
+        };
 
         function startAutoCheck() {
             if (checkInterval) clearInterval(checkInterval);
@@ -1263,21 +1287,28 @@
         }
 
         async function checkStatusReal() {
+            const keyInput = document.getElementById('streamKey');
+            const streamKey = (keyInput && keyInput.value) ? keyInput.value.trim() : "{{ $profile->stream_key }}";
+            if (!streamKey) return;
+
             try {
-                const response = await fetch(`/api/rtmp/check-signal/${streamKeyToCheck}`);
+                const response = await fetch('/api/rtmp/check-signal/' + encodeURIComponent(streamKey));
                 const data = await response.json();
 
                 if (data.active) {
                     const statusBox = document.getElementById('connectionStatus');
                     const startBtn = document.getElementById('startBtn');
+                    if (!statusBox || !startBtn) return;
 
                     statusBox.innerHTML = '<i class="fas fa-check-circle" style="color: #28a745;"></i> {{ __('model.streams.create.status_success') }}';
                     statusBox.className = 'test-status status-success';
 
                     startBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> {{ __('model.streams.create.btn_start_live') }}';
+                    startBtn.disabled = false;
+                    startBtn.setAttribute('aria-disabled', 'false');
 
-                    // Detener el polling una vez detectado
                     clearInterval(checkInterval);
+                    checkInterval = null;
 
                     Swal.fire({
                         icon: 'success',
@@ -1311,7 +1342,13 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const startBtn = document.getElementById('startBtn');
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.setAttribute('aria-disabled', 'true');
+            }
             startAutoCheck();
         });
+        @endif
     </script>
 @endsection

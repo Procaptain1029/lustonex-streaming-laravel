@@ -16,13 +16,13 @@ class ProfileStatusController extends Controller
 
         $model->load('profile');
 
-        $hasLiveOrPaused = $model->streams()->whereIn('status', ['live', 'paused'])->exists();
+        $hasPlayable = $model->streams()->whereIn('status', ['live', 'paused', 'pending'])->exists();
 
         return response()->json([
-            'is_streaming' => ($model->profile && $model->profile->is_streaming) || $hasLiveOrPaused,
+            'is_streaming' => ($model->profile && $model->profile->is_streaming) || $hasPlayable,
             'is_online' => $model->profile ? $model->profile->is_online : false,
             'last_seen' => $model->profile ? $model->profile->last_seen : null,
-            'active_stream' => $hasLiveOrPaused,
+            'active_stream' => $hasPlayable,
         ]);
     }
 }
