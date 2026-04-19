@@ -3,7 +3,7 @@
     if (auth()->check() && auth()->user()->isAdmin()) {
         $layout = 'layouts.admin';
     }
-    $isStreaming = $model->profile && $model->profile->is_streaming;
+    $isStreaming = ($model->profile && $model->profile->is_streaming) || ($fanLivePlayback ?? false);
 @endphp
 
 @extends($layout)

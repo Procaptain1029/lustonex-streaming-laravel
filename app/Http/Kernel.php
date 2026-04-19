@@ -41,7 +41,8 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
-            // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            // Intentionally not stateful: enabling Sanctum stateful middleware would require CSRF
+            // on all mutating /api POSTs from the browser (upload-chunk, join-viewer, etc.).
             \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],

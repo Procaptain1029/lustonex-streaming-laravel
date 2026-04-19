@@ -383,7 +383,7 @@
                         <span class="badge-premium-sh sh-coral">
                             <i class="far fa-heart"></i> {{ __('profiles.badges.favorite') }}
                         </span>
-                        @if($model->profile && $model->profile->is_streaming)
+                        @if($fanLivePlayback ?? ($model->profile && $model->profile->is_streaming))
                             <span class="badge-premium-sh sh-crimson">
                                 <div class="sh-live-pulse"></div>
                                 {{ __('profiles.badges.live') }}
@@ -419,7 +419,7 @@
                         </form>
                     @endif
 
-                    @if($model->profile && $model->profile->is_streaming)
+                    @if($fanLivePlayback ?? ($model->profile && $model->profile->is_streaming))
                         <button class="btn-profile" onclick="openTipModal()"><i class="fas fa-gift"></i> {{ __('profiles.actions.tip') }}</button>
                     @endif
                     

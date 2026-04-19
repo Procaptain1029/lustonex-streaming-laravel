@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -22,7 +22,9 @@ class WebRTCSignalRelay implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new PresenceChannel("presence-stream.{$this->streamId}")];
+        // Public channel: WebRTC signaling must work for guests and any authenticated role
+        // without /broadcasting/auth (presence/private channels reject guests and some roles).
+        return [new Channel("webrtc-stream.{$this->streamId}")];
     }
 
     public function broadcastAs(): string

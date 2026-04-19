@@ -2137,7 +2137,7 @@
                 <!-- Right Column -->
                 <div class="profile-col-right">
                     @if(!(auth()->check() && ((auth()->user()->isModel() &&  auth()->id() === $model->id) || auth()->user()->isAdmin())))
-                        <div class="@if(!($model->profile && $model->profile->is_streaming)) chat-hidden-mobile @endif">
+                        <div class="@if(!($fanLivePlayback ?? false)) chat-hidden-mobile @endif">
                             @include('profiles.partials.chat-widget')
                         </div>
                     @endif
@@ -2164,7 +2164,7 @@
                                         </div>
                                     @endif
 
-                                    @if($model->profile && $model->profile->is_streaming)
+                                    @if($fanLivePlayback ?? false)
                                         <div class="sh-live-badge">
                                             <i class="fas fa-circle" style="font-size: 6px; color: white;"></i> EN VIVO
                                         </div>

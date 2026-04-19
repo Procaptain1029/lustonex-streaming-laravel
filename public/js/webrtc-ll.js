@@ -105,30 +105,9 @@ class WebRTCLowLatency {
             return;
         }
 
-        this.channel = window.Echo.join(`presence-stream.${streamId}`);
-        this.channel
-            .here((users) => {
-                if (!this.isBroadcaster) {
-                    const modelUser = users.find((u) => u && Number(u.id) !== Number(window.currentUserId || 0));
-                    if (modelUser) {
-                        this._sendViewerReady();
-                    }
-                }
-            })
-            .joining((user) => {
-                if (!this.isBroadcaster && user && Number(user.id) !== Number(window.currentUserId || 0)) {
-                    this._sendViewerReady();
-                }
-            })
-            .leaving((user) => {
-                if (!user) return;
-                this._handlePeerDisconnect(user.id);
-            })
-            .listen(".webrtc.signal", (data) => {
-                this._handleRelayedSignal(data);
-            });
-
-        this.channel.listenForWhisper("webrtc-signal", (data) => {
+        // Public channel (no /broadcasting/auth): works for guests and all roles while stream is live.
+        this.channel = window.Echo.channel(`webrtc-stream.${streamId}`);
+        this.channel.listen(".webrtc.signal", (data) => {
             this._handleRelayedSignal(data);
         });
     }
@@ -673,12 +652,12 @@ class WebRTCLowLatency {
             ...payload
         };
 
-        if (this.channel) {
-            // Fast path: whisper immediately for all signal types.
+        // Whisper exists only on private/presence Echo channels. Public `Echo.channel()` has no whisper — use HTTP relay only.
+        if (this.channel && typeof this.channel.whisper === "function") {
             this.channel.whisper("webrtc-signal", data);
         }
 
-        // Reliable path: relay through backend as backup.
+        // Reliable path: relay through backend (required for public webrtc-stream.* channels).
         const relayPayload = {
             ...payload,
             signalId: data.signalId,
@@ -760,7 +739,7 @@ class WebRTCLowLatency {
         }
 
         if (this.channel && window.Echo) {
-            window.Echo.leave(`presence-stream.${this.streamId}`);
+            window.Echo.leave(`webrtc-stream.${this.streamId}`);
         }
         this.channel = null;
     }

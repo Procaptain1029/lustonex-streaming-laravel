@@ -123,6 +123,8 @@ Route::middleware(['auth', 'role:model', 'verified', 'model.onboarding'])->prefi
 
 
     Route::get('/streams/go-live', [ModelStreamController::class, 'goLive'])->name('streams.go-live');
+    // Session-backed JSON for model dashboard (pending streams are invisible on /api without session).
+    Route::get('/streams/{stream}/polling-info', [StreamingController::class, 'getStreamInfoForDashboard'])->name('streams.polling-info');
     Route::resource('streams', ModelStreamController::class)->except(['edit', 'update']);
     Route::get('/streams/{stream}/admin', [ModelStreamController::class, 'admin'])->name('streams.admin');
     Route::get('/streams/{stream}/live', [ModelStreamController::class, 'live'])->name('streams.live');
@@ -325,14 +327,19 @@ Route::post('/chat/{message}/hide', [StreamViewController::class, 'hideMessage']
     ->middleware('auth')
     ->name('chat.hide');
 
-Route::middleware(['auth'])->prefix('webrtc/stream/{streamId}')->group(function () {
-    Route::post('/signal', [StreamingController::class, 'relayWebRTCSignal']);
+// WebRTC signaling + viewer count: allow guests when stream is live/paused (profile public watch).
+Route::middleware(['web'])->prefix('webrtc/stream/{streamId}')->group(function () {
+    Route::post('/signal', [StreamingController::class, 'relayWebRTCSignal'])
+        ->middleware('throttle:webrtc-signal');
     Route::get('/relay/{relayId}', [StreamingController::class, 'fetchWebRtcRelayPayload'])
         ->where('relayId', '[0-9a-fA-F\-]{36}');
-    Route::post('/start-broadcast', [StreamingController::class, 'startBroadcast']);
-    Route::post('/stop-broadcast', [StreamingController::class, 'stopBroadcast']);
     Route::post('/join-viewer', [StreamingController::class, 'joinAsViewer']);
     Route::post('/leave-viewer', [StreamingController::class, 'leaveAsViewer']);
+});
+
+Route::middleware(['web', 'auth'])->prefix('webrtc/stream/{streamId}')->group(function () {
+    Route::post('/start-broadcast', [StreamingController::class, 'startBroadcast']);
+    Route::post('/stop-broadcast', [StreamingController::class, 'stopBroadcast']);
 });
 
 

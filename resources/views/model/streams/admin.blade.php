@@ -1095,7 +1095,7 @@
         // UPDATE STATS (Polling)
         async function updateStreamData() {
             try {
-                const response = await fetch(`/api/stream/${streamId}/info`);
+                const response = await fetch(@json(route('model.streams.polling-info', $stream)));
                 const data = await response.json();
 
                 if (data.status === 'pending') {

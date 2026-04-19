@@ -1,10 +1,14 @@
+@php
+    $fanPlayerVisible = $fanLivePlayback
+        ?? (isset($activeStream) && $activeStream && in_array($activeStream->status, ['live', 'paused'], true));
+@endphp
 <div class="player-section">
 
     <div class="stage-card">
         <div class="player-window">
             <div class="player-aspect-ratio shadow-2xl relative overflow-hidden group">
                 @auth
-                    @if($model->profile && $model->profile->is_streaming)
+                    @if($fanPlayerVisible && $model->profile)
                         <div id="rouletteOverlay" class="roulette-overlay">
                             <div class="roulette-wheel-container">
                                 <div id="rouletteWheel" class="roulette-wheel">
@@ -54,7 +58,7 @@
                     </div>
                 @endif
 
-                @if($model->profile && $model->profile->is_streaming)
+                @if($fanPlayerVisible && $model->profile)
                     @php
                         // URL del HLS servido por Laravel desde public/hls/live/
                         $hlsUrl = asset('hls/live/' . $model->profile->stream_key . '/index.m3u8');

@@ -26,7 +26,16 @@ Broadcast::channel('streams', function () {
 Broadcast::channel('stream.{streamId}', function ($user, $streamId) {
     $stream = \App\Models\Stream::find($streamId);
 
-    if (!$stream || !in_array($stream->status, ['live', 'paused'], true)) {
+    if (! $stream) {
+        return false;
+    }
+
+    // Preparing / pending: only broadcaster and admin (model admin dashboard subscribes here).
+    if ($stream->status === 'pending') {
+        return $user->isAdmin() || (int) $user->id === (int) $stream->user_id;
+    }
+
+    if (! in_array($stream->status, ['live', 'paused'], true)) {
         return false;
     }
 

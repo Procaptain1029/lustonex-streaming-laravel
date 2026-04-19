@@ -13,9 +13,19 @@ use Illuminate\Support\Str;
 class StreamingController extends Controller
 {
 
-    public function getStreamInfo($streamId)
+    /**
+     * JSON for the authenticated model's stream admin dashboard (session auth; includes pending).
+     */
+    public function getStreamInfoForDashboard(Stream $stream)
     {
-        $stream = Stream::with('user.profile')->findOrFail($streamId);
+        abort_unless((int) $stream->user_id === (int) auth()->id(), 403);
+
+        return $this->getStreamInfo($stream);
+    }
+
+    public function getStreamInfo(Stream $stream)
+    {
+        $stream->load('user.profile');
 
         if ($stream->status === 'pending') {
             if (! auth()->check() || (int) auth()->id() !== (int) $stream->user_id) {
@@ -136,10 +146,9 @@ class StreamingController extends Controller
     {
         $stream = Stream::findOrFail($streamId);
 
-        if ($stream->status !== 'live') {
+        if (! in_array($stream->status, ['live', 'paused'], true)) {
             return response()->json(['error' => 'Stream no está activo'], 404);
         }
-
 
         $stream->increment('viewers_count');
 
@@ -208,7 +217,7 @@ class StreamingController extends Controller
 
             broadcast(new WebRTCSignalRelay(
                 streamId: (int) $stream->id,
-                senderUserId: (int) auth()->id(),
+                senderUserId: (int) (auth()->id() ?? 0),
                 senderPeerId: $validated['senderPeerId'],
                 signalEvent: $signalEvent,
                 payload: ['relayId' => $relayId]
@@ -219,7 +228,7 @@ class StreamingController extends Controller
 
         broadcast(new WebRTCSignalRelay(
             streamId: (int) $stream->id,
-            senderUserId: (int) auth()->id(),
+            senderUserId: (int) (auth()->id() ?? 0),
             senderPeerId: $validated['senderPeerId'],
             signalEvent: $signalEvent,
             payload: $payload
@@ -239,11 +248,13 @@ class StreamingController extends Controller
             return response()->json(['success' => false, 'message' => 'Stream not active'], 404);
         }
 
-        $user = auth()->user();
-        $allowed = $user->isAdmin() || (int) $user->id === (int) $stream->user_id
-            || ($user->isFan() && in_array($stream->status, ['live', 'paused'], true));
-        if (!$allowed) {
-            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+        if (in_array($stream->status, ['live', 'paused'], true)) {
+            // Guests and all roles may fetch SDP payloads while the stream is watchable.
+        } else {
+            $user = auth()->user();
+            if (! $user || (! $user->isAdmin() && (int) $user->id !== (int) $stream->user_id)) {
+                return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            }
         }
 
         if (!preg_match('/^[0-9a-f\-]{36}$/i', $relayId)) {

@@ -26,7 +26,6 @@ Route::get('/profile/{model}/status', [App\Http\Controllers\Api\ProfileStatusCon
 
 // Streaming API
 Route::middleware('auth')->group(function () {
-    Route::get('/stream/{stream}/info', [App\Http\Controllers\StreamingController::class, 'getStreamInfo']);
     Route::get('/stream/chat/{stream}/new', [App\Http\Controllers\StreamingController::class, 'getNewChatMessages']);
     Route::post('/stream/{stream}/start-broadcast', [App\Http\Controllers\StreamingController::class, 'startBroadcast']);
     Route::post('/stream/{stream}/stop-broadcast', [App\Http\Controllers\StreamingController::class, 'stopBroadcast']);

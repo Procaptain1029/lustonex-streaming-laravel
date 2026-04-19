@@ -66,6 +66,8 @@ class ProfilePublicController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        $fanLivePlayback = $activeStream && in_array($activeStream->status, ['live', 'paused'], true);
+
         $relatedModels = User::where('role', 'model')
             ->whereHas('profile', function ($query) {
                 $query->where('profile_completed', true);
@@ -113,7 +115,7 @@ class ProfilePublicController extends Controller
         // Debugging (Remove after verification)
         // if ($model->id == 503) { dd(['isMobile' => $isMobile, 'UA' => $userAgent, 'hasMobileParam' => $request->has('mobile')]); }
 
-        $isStreaming = $model->profile && $model->profile->is_streaming;
+        $isStreaming = ($model->profile && $model->profile->is_streaming) || $fanLivePlayback;
         $viewName = ($isMobile && $isStreaming) ? 'profiles.show-mobile' : 'profiles.show';
 
         // Fetch token packages for quick recharge
@@ -131,6 +133,7 @@ class ProfilePublicController extends Controller
             'videos',
             'hasSubscription',
             'activeStream',
+            'fanLivePlayback',
             'relatedModels',
             'canViewContent',
             'isOwner',
