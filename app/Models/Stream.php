@@ -15,6 +15,7 @@ class Stream extends Model
         'title',
         'description',
         'status',
+        'broadcast_mode',
         'stream_key',
         'rtmp_url',
         'playback_url',

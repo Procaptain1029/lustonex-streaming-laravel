@@ -779,6 +779,8 @@ return [
             'shortcuts' => 'Shortcuts',
             'pause' => 'Pause',
             'resume' => 'Resume',
+            'shortcut_pause_stream' => 'Pause stream',
+            'shortcut_resume_stream' => 'Resume stream',
             'refresh_player' => 'Reload Player',
             'end_all' => 'End All',
             'activity_feed' => 'Activity Feed',

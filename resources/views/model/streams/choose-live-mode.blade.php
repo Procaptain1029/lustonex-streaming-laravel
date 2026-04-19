@@ -3,7 +3,7 @@
 @section('title', __('model.streams.go_live.title'))
 
 @section('breadcrumb')
-    <a href="{{ route('model.dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <a href="{{ route('model.dashboard') }}" class="breadcrumb-item">{{ __('model.dashboard.title') }}</a>
     <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
     <a href="{{ route('model.streams.index') }}" class="breadcrumb-item">{{ __('model.streams.index.title') }}</a>
     <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>

@@ -54,6 +54,7 @@ class WebRTCLowLatency {
         }
 
         if (videoElement) {
+            this.remoteVideoElement = videoElement;
             videoElement.srcObject = this.localStream;
             videoElement.muted = true;
             await videoElement.play().catch(() => {});
@@ -736,6 +737,13 @@ class WebRTCLowLatency {
         if (this.localStream) {
             this.localStream.getTracks().forEach((track) => track.stop());
             this.localStream = null;
+        }
+
+        if (this.remoteVideoElement) {
+            try {
+                this.remoteVideoElement.srcObject = null;
+            } catch (_) {}
+            this.remoteVideoElement = null;
         }
 
         if (this.channel && window.Echo) {

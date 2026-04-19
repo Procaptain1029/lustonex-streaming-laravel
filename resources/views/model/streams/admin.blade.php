@@ -133,22 +133,30 @@
             background: rgba(255,255,255,0.02);
         }
 
-        /* PLAYER AREA */
+        /* PLAYER AREA — stack video + placeholder (same box); row flex was placing them side-by-side and hiding the feed */
         .player-container {
             position: relative;
             width: 100%;
             flex: 1;
             min-height: 0;
             background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
         #hlsMainPlayer {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             object-fit: contain;
+            z-index: 2;
+            background: #000;
+        }
+
+        #adminPlayerPlaceholder {
+            position: absolute;
+            inset: 0;
+            z-index: 4;
+            background: rgba(0, 0, 0, 0.88);
         }
 
         .player-overlay {
@@ -158,6 +166,12 @@
             display: flex;
             gap: 0.5rem;
             z-index: 10;
+            pointer-events: none;
+        }
+
+        .player-overlay .badge-live,
+        .player-overlay .badge-quality {
+            pointer-events: auto;
         }
 
         .badge-live {
@@ -470,7 +484,8 @@
                 </div>
             </div>
             
-            <div class="top-stats-group" style="font-size: 0.75rem; border-left: 1px solid var(--twitch-border); padding-left: 1rem;">
+            <div class="top-stats-group" style="font-size: 0.75rem; border-left: 1px solid var(--twitch-border); padding-left: 1rem; flex-direction: column; align-items: flex-start; gap: 0.5rem;">
+                @include('model.streams.partials.rtmp-public-url-warning')
                 <div>
                     <span style="color: var(--text-muted);">RTMP:</span> 
                     <span style="font-family: monospace;">{{ config('streaming.rtmp_public_url_base') }}</span>
@@ -504,8 +519,7 @@
                     </div>
 
                     <video id="hlsMainPlayer" controls autoplay muted playsinline
-                        data-url="{{ asset('hls/live/' . $stream->stream_key . '/index.m3u8') }}"
-                        style="{{ $stream->status === 'live' || $stream->status === 'paused' ? '' : 'display:none;' }}">
+                        data-url="{{ asset('hls/live/' . $stream->stream_key . '/index.m3u8') }}">
                     </video>
                     <div id="adminPlayerPlaceholder" class="empty-state" style="{{ $stream->status === 'live' || $stream->status === 'paused' ? 'display:none;' : '' }}">
                         @if($stream->status === 'pending')
@@ -532,14 +546,14 @@
                         <form id="pauseForm" action="{{ route('model.streams.pause', $stream) }}" method="POST" style="display: none;">@csrf</form>
                         <button class="shortcut-tile" onclick="handlePause()">
                             <div class="tile-icon"><i class="fas fa-pause"></i></div>
-                            <div class="tile-text">{{ __('model.streams.admin.pause') }} Stream</div>
+                            <div class="tile-text">{{ __('model.streams.admin.shortcut_pause_stream') }}</div>
                         </button>
                     @elseif($stream->status === 'paused')
                         <form action="{{ route('model.streams.resume', $stream) }}" method="POST" style="display:inline-block; margin: 0;">
                             @csrf
                             <button type="submit" class="shortcut-tile active-bg">
                                 <div class="tile-icon"><i class="fas fa-play"></i></div>
-                                <div class="tile-text">{{ __('model.streams.admin.resume') }} Stream</div>
+                                <div class="tile-text">{{ __('model.streams.admin.shortcut_resume_stream') }}</div>
                             </button>
                         </form>
                     @endif
@@ -548,10 +562,12 @@
                         <div class="tile-icon"><i class="fas fa-sync-alt"></i></div>
                         <div class="tile-text">{{ __('model.streams.admin.refresh_player') }}</div>
                     </button>
+                    @unless(($stream->broadcast_mode ?? 'obs') === 'obs')
                     <button id="adminWebRtcToggleBtn" class="shortcut-tile active-bg" type="button" onclick="toggleWebRtcAdminPreview()">
                         <div class="tile-icon"><i class="fas fa-satellite-dish"></i></div>
                         <div id="adminWebRtcToggleLabel" class="tile-text">{!! __('model.streams.admin.webrtc_btn_start') !!}</div>
                     </button>
+                    @endunless
 
                     <form action="{{ route('model.streams.end', $stream) }}" method="POST" id="endStreamForm" style="margin: 0;">
                         @csrf
@@ -686,6 +702,14 @@
         let streamId = {{ $stream->id }};
         let lastMessageId = {{ $stream->chatMessages->last()->id ?? 0 }};
         let currentUserId = {{ auth()->id() }};
+        /** Server-side status when this page was rendered; polling updates this when OBS → RTMP marks the stream live. */
+        let adminStreamPollStatus = @json($stream->status);
+        const ADMIN_BADGE_LIVE = @json(__('model.streams.admin.status_live'));
+        const ADMIN_BADGE_PENDING = @json(__('model.streams.admin.status_pending'));
+        /** Once HLS preview has been started for this page load (OBS segments may exist before DB flips to live). */
+        let adminHlsObsPreviewActivated = false;
+        /** HLS auto-probe / poll-activation only for OBS streams — browser/WebRTC waits for "Start camera". */
+        const ADMIN_BROADCAST_IS_OBS = @json(($stream->broadcast_mode ?? 'obs') === 'obs');
         let pauseMode = '{{ auth()->user()->profile->pause_mode ?? 'none' }}';
         const WEBRTC_UI = {
             start: @json(__('model.streams.admin.webrtc_btn_start')),
@@ -715,11 +739,16 @@
         updateAdminWebRtcToggleUI();
 
         async function toggleWebRtcAdminPreview() {
+            if (ADMIN_BROADCAST_IS_OBS) {
+                return;
+            }
             const video = document.getElementById('hlsMainPlayer');
             const placeholder = document.getElementById('adminPlayerPlaceholder');
 
             if (!adminWebRtcRunning) {
                 try {
+                    adminHlsObsPreviewActivated = false;
+                    clearVideoForMediaSwitch();
                     adminWebRtc = adminWebRtc || new WebRTCLowLatency();
                     await adminWebRtc.startBroadcast(streamId, video);
                     adminWebRtcRunning = true;
@@ -744,6 +773,45 @@
 
             adminWebRtcRunning = false;
             updateAdminWebRtcToggleUI();
+
+            const v = document.getElementById('hlsMainPlayer');
+            if (v) {
+                try {
+                    v.srcObject = null;
+                } catch (e) {}
+            }
+            if (adminStreamPollStatus === 'live' || adminStreamPollStatus === 'paused') {
+                if (ADMIN_BROADCAST_IS_OBS) {
+                    initHls();
+                } else if (placeholder) {
+                    placeholder.style.display = '';
+                    if (v) v.style.display = 'none';
+                }
+            }
+        }
+
+        function detachHlsFromVideo() {
+            if (hls) {
+                try {
+                    hls.destroy();
+                } catch (e) {}
+                hls = null;
+            }
+        }
+
+        function clearVideoForMediaSwitch() {
+            const video = document.getElementById('hlsMainPlayer');
+            if (!video) return;
+            detachHlsFromVideo();
+            try {
+                video.removeAttribute('src');
+            } catch (e) {}
+            if (video.srcObject) {
+                try {
+                    video.srcObject.getTracks().forEach((t) => t.stop());
+                } catch (e) {}
+                video.srcObject = null;
+            }
         }
 
         function initHls() {
@@ -751,9 +819,9 @@
             if (!video) return;
 
             const url = video.dataset.url;
+            clearVideoForMediaSwitch();
 
             if (Hls.isSupported()) {
-                if (hls) hls.destroy();
                 hls = new Hls({
                     lowLatencyMode: true,
                     liveSyncDurationCount: 2,
@@ -786,8 +854,83 @@
             }
         }
 
+        function activateAdminObsPreviewFromPoll() {
+            if (!ADMIN_BROADCAST_IS_OBS) {
+                return;
+            }
+            if (adminHlsObsPreviewActivated || adminWebRtcRunning) {
+                return;
+            }
+            adminHlsObsPreviewActivated = true;
+            const video = document.getElementById('hlsMainPlayer');
+            const placeholder = document.getElementById('adminPlayerPlaceholder');
+            const badge = document.querySelector('.player-overlay .badge-live');
+            if (placeholder) {
+                placeholder.style.display = 'none';
+            }
+            if (video) {
+                video.style.display = '';
+            }
+            if (badge) {
+                badge.textContent = ADMIN_BADGE_LIVE;
+                badge.style.background = '';
+            }
+            if (!adminWebRtcRunning) {
+                initHls();
+            }
+        }
+
+        /**
+         * OBS can deliver HLS before Laravel marks the stream live (e.g. RTMP server cannot POST to APP_URL).
+         * Poll the playlist URL and start the player as soon as segments exist.
+         */
+        async function probeAdminHlsManifestWhileWaiting() {
+            if (!ADMIN_BROADCAST_IS_OBS) {
+                return;
+            }
+            if (adminWebRtcRunning || adminHlsObsPreviewActivated) {
+                return;
+            }
+            const placeholder = document.getElementById('adminPlayerPlaceholder');
+            if (!placeholder || window.getComputedStyle(placeholder).display === 'none') {
+                return;
+            }
+            const video = document.getElementById('hlsMainPlayer');
+            const url = video?.dataset?.url;
+            if (!url) {
+                return;
+            }
+            try {
+                const response = await fetch(url, { method: 'GET', cache: 'no-store', credentials: 'same-origin' });
+                if (!response.ok) {
+                    return;
+                }
+                const head = (await response.text()).slice(0, 2048);
+                if (!head.includes('#EXTM3U')) {
+                    return;
+                }
+                activateAdminObsPreviewFromPoll();
+            } catch (_) {
+                /* ignore until manifest exists */
+            }
+        }
+
         function refreshPlayer() {
-            initHls();
+            const ph = document.getElementById('adminPlayerPlaceholder');
+            const vid = document.getElementById('hlsMainPlayer');
+            if (ADMIN_BROADCAST_IS_OBS || adminWebRtcRunning) {
+                if (ph) {
+                    ph.style.display = 'none';
+                }
+                if (vid) {
+                    vid.style.display = '';
+                }
+                if (!adminWebRtcRunning) {
+                    adminHlsObsPreviewActivated = false;
+                    initHls();
+                    adminHlsObsPreviewActivated = true;
+                }
+            }
             Swal.fire({
                 icon: 'info',
                 title: '{{ __('model.streams.admin.swal.refresh_title') }}',
@@ -1096,13 +1239,26 @@
         async function updateStreamData() {
             try {
                 const response = await fetch(@json(route('model.streams.polling-info', $stream)));
+                if (!response.ok) {
+                    return;
+                }
                 const data = await response.json();
+                if (data.error) {
+                    return;
+                }
 
                 if (data.status === 'pending') {
                     document.getElementById('streamDuration').innerText = '--:--';
+                    adminStreamPollStatus = 'pending';
                     return;
                 }
                 if (data.status === 'live' || data.status === 'paused') {
+                    const ph = document.getElementById('adminPlayerPlaceholder');
+                    const placeholderVisible = ph && window.getComputedStyle(ph).display !== 'none';
+                    if (ADMIN_BROADCAST_IS_OBS && (adminStreamPollStatus === 'pending' || placeholderVisible)) {
+                        activateAdminObsPreviewFromPoll();
+                    }
+                    adminStreamPollStatus = data.status;
                     document.getElementById('viewerCount').innerText = data.viewers_count.toLocaleString();
                     if (data.started_at) {
                         updateDuration(data.started_at);
@@ -1240,8 +1396,16 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            @if($stream->status === 'live' || $stream->status === 'paused')
+            @if(($stream->broadcast_mode ?? 'obs') === 'obs' && ($stream->status === 'live' || $stream->status === 'paused'))
             initHls();
+            @endif
+
+            // Detect OBS → RTMP: DB becomes live while this page was still "pending" (no full reload).
+            updateStreamData();
+            @if(($stream->broadcast_mode ?? 'obs') === 'obs')
+            // HLS may exist before Laravel marks the stream live (RTMP auth must reach APP_URL from rtmp-server.cjs).
+            probeAdminHlsManifestWhileWaiting();
+            setInterval(probeAdminHlsManifestWhileWaiting, 2000);
             @endif
             
             // Actualizar datos del stream (vista, estado, on/off)

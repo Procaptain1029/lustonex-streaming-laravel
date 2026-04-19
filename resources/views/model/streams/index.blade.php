@@ -3,7 +3,7 @@
 @section('title', __('model.streams.index.title'))
 
 @section('breadcrumb')
-    <a href="{{ route('model.dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <a href="{{ route('model.dashboard') }}" class="breadcrumb-item">{{ __('model.dashboard.title') }}</a>
     <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
     <span class="breadcrumb-item active">{{ __('model.streams.index.title') }}</span>
 @endsection

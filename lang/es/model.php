@@ -781,6 +781,8 @@ return [
             'shortcuts' => 'Atajos',
             'pause' => 'Pausar',
             'resume' => 'Reanudar',
+            'shortcut_pause_stream' => 'Pausar transmisión',
+            'shortcut_resume_stream' => 'Reanudar transmisión',
             'refresh_player' => 'Recargar reproductor',
             'end_all' => 'Finalizar todo',
             'activity_feed' => 'Fuente de actividades',

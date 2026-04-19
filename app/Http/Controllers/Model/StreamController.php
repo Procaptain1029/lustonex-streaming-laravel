@@ -79,6 +79,7 @@ class StreamController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
+            'broadcast_mode' => 'nullable|string|in:obs,browser',
         ]);
 
         
@@ -100,10 +101,13 @@ class StreamController extends Controller
         $profile = auth()->user()->profile;
         $streamKey = $profile->stream_key ?? $profile->generateStreamKey();
 
+        $broadcastMode = $validated['broadcast_mode'] ?? 'browser';
+
         $stream = auth()->user()->streams()->create([
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'status' => 'pending',
+            'broadcast_mode' => $broadcastMode,
             'stream_key' => $streamKey,
             'rtmp_url' => config('streaming.rtmp_public_url_base')."/{$streamKey}",
             'playback_url' => "/hls/live/{$streamKey}/index.m3u8",
