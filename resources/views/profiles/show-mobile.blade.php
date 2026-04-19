@@ -1242,7 +1242,6 @@
         // Video Player Logic
         const player = document.getElementById('hlsEnhancedPlayer');
         const muteBtn = document.getElementById('immMuteBtn');
-        const playBtn = document.getElementById('immPlayBtn');
 
         function toggleImmMute() {
             if (player.muted) {
@@ -1255,20 +1254,6 @@
                 muteBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
                 muteBtn.classList.remove('active');
                 muteBtn.title = immTrans.unmute;
-            }
-        }
-
-        function toggleImmPlay() {
-            if (player.paused) {
-                player.play();
-                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
-                // playBtn.classList.add('active'); // Optional: only if you want it highlighted when playing
-                playBtn.title = immTrans.pause;
-            } else {
-                player.pause();
-                playBtn.innerHTML = '<i class="fas fa-play"></i>';
-                // playBtn.classList.remove('active');
-                playBtn.title = immTrans.play;
             }
         }
 

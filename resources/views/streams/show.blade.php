@@ -709,7 +709,7 @@
             
             <div class="video-section">
                 <div class="video-container">
-                    <video id="remoteVideo" autoplay playsinline controls class="video-player">
+                    <video id="remoteVideo" autoplay muted playsinline class="video-player">
                     </video>
 
                     
@@ -1140,6 +1140,12 @@
                         hls.destroy();
                         hls = null;
                     }
+                    remoteVideo.muted = true;
+                    remoteVideo.play().catch(() => {});
+                }, { once: true });
+                window.addEventListener('webrtc-video-ready', () => {
+                    remoteVideo.muted = true;
+                    remoteVideo.play().catch(() => {});
                 }, { once: true });
                 setTimeout(() => {
                     if (!remoteVideo.srcObject) {

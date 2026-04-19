@@ -71,19 +71,10 @@
                     </div>
                     <video id="hlsProfilePlayer" class="w-full h-full object-contain" data-url="{{ $hlsUrl }}"
                         autoplay muted playsinline></video>
-                    
-                    <!-- Center Big Play Button (Visible when paused) -->
-                    <div id="playerCenterPlay" class="player-center-play pc-only-control">
-                        <i class="fas fa-play"></i>
-                    </div>
 
-                    <!-- Custom Bottom Controls Bar -->
+                    <!-- Custom bottom bar: volume + fullscreen only (no play/pause — autoplay) -->
                     <div class="player-custom-controls pc-only-control">
                         <div class="controls-left">
-                            <button id="playerPlayPauseBtn" class="player-control-btn">
-                                <i class="fas fa-pause"></i>
-                            </button>
-                            
                             <div class="player-volume-group">
                                 <button id="playerMuteBtn" class="player-control-btn vol-btn">
                                     <i class="fas fa-volume-up"></i>

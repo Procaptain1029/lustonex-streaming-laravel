@@ -2370,11 +2370,6 @@
                     tryPlay();
                 };
 
-                /* Móvil: controles nativos (play / pantalla completa). Los custom están ocultos con .pc-only-control */
-                if (window.matchMedia && window.matchMedia('(max-width: 1024px)').matches) {
-                    video.setAttribute('controls', 'controls');
-                }
-
                 if (shouldTryWebRtc && window.WebRTCLowLatency) {
                     const webrtc = new WebRTCLowLatency();
                     webrtc.joinBroadcast(streamId, video)
@@ -2385,10 +2380,12 @@
                             hls.destroy();
                             hls = null;
                         }
+                        tryPlay();
                     }, { once: true });
 
                     window.addEventListener('webrtc-video-ready', () => {
                         setModeBadge('WebRTC (Low Latency)', '#15803d');
+                        tryPlay();
                         markVideoReady();
                     }, { once: true });
 
@@ -3205,37 +3202,12 @@
 
             // Custom Player Controls Logic (PC Only)
             const controlsBar = document.querySelector('.player-custom-controls');
-            const centerPlay = document.getElementById('playerCenterPlay');
-            const playPauseBtn = document.getElementById('playerPlayPauseBtn');
             const muteBtn = document.getElementById('playerMuteBtn');
             const volSlider = document.getElementById('playerVolumeSlider');
             const fullscreenBtn = document.getElementById('playerFullscreenBtn');
             let hideTimeout;
 
-            if (videoElement && controlsBar) {
-                // Play/Pause Logic
-                const togglePlay = () => {
-                    if (videoElement.paused) {
-                        videoElement.play();
-                    } else {
-                        videoElement.pause();
-                    }
-                };
-
-                videoElement.addEventListener('play', () => {
-                    playPauseBtn.querySelector('i').className = 'fas fa-pause';
-                    centerPlay.classList.remove('visible');
-                });
-
-                videoElement.addEventListener('pause', () => {
-                    playPauseBtn.querySelector('i').className = 'fas fa-play';
-                    centerPlay.classList.add('visible');
-                });
-
-                playPauseBtn.addEventListener('click', togglePlay);
-                centerPlay.addEventListener('click', togglePlay);
-                videoElement.addEventListener('click', togglePlay);
-
+            if (videoElement && controlsBar && muteBtn && volSlider && fullscreenBtn) {
                 // Volume Logic
                 volSlider.addEventListener('input', function() {
                     const val = parseFloat(this.value);
