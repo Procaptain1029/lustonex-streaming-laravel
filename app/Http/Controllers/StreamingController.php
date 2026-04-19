@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\StreamStarted;
 use App\Events\WebRTCSignalRelay;
 use App\Models\Stream;
 use App\Models\User;
@@ -15,6 +16,24 @@ class StreamingController extends Controller
     public function getStreamInfo($streamId)
     {
         $stream = Stream::with('user.profile')->findOrFail($streamId);
+
+        if ($stream->status === 'pending') {
+            if (! auth()->check() || (int) auth()->id() !== (int) $stream->user_id) {
+                return response()->json(['error' => 'Stream no está activo'], 404);
+            }
+
+            return response()->json([
+                'stream_id' => $stream->id,
+                'model_id' => $stream->user_id,
+                'model_name' => $stream->user->name,
+                'title' => $stream->title,
+                'status' => 'pending',
+                'viewers_count' => $stream->viewers_count,
+                'started_at' => $stream->started_at,
+                'websocket_channel' => "stream.{$stream->id}",
+                'webrtc_room' => "room_{$stream->id}",
+            ]);
+        }
 
         if ($stream->status !== 'live' && $stream->status !== 'paused') {
             return response()->json(['error' => 'Stream no está activo'], 404);
@@ -59,13 +78,19 @@ class StreamingController extends Controller
         }
 
 
-        $stream->update([
-            'status' => 'live',
-            'started_at' => now(),
-        ]);
+        $wasPending = $stream->status === 'pending';
 
+        $updates = ['status' => 'live'];
+        if (! $stream->started_at) {
+            $updates['started_at'] = now();
+        }
+        $stream->update($updates);
 
         $stream->user->profile()->update(['is_streaming' => true]);
+
+        if ($wasPending) {
+            event(new StreamStarted($stream));
+        }
 
         Log::info("Stream {$streamId} iniciado por usuario {$stream->user_id}");
 
@@ -155,7 +180,7 @@ class StreamingController extends Controller
     {
         $stream = Stream::findOrFail($streamId);
 
-        if (!in_array($stream->status, ['live', 'paused'], true)) {
+        if (! $this->streamAllowsWebRtcSignaling($stream)) {
             return response()->json(['success' => false, 'message' => 'Stream not active'], 422);
         }
 
@@ -210,12 +235,13 @@ class StreamingController extends Controller
     {
         $stream = Stream::findOrFail($streamId);
 
-        if (!in_array($stream->status, ['live', 'paused'], true)) {
+        if (! $this->streamAllowsWebRtcSignaling($stream)) {
             return response()->json(['success' => false, 'message' => 'Stream not active'], 404);
         }
 
         $user = auth()->user();
-        $allowed = $user->isAdmin() || (int) $user->id === (int) $stream->user_id || $user->isFan();
+        $allowed = $user->isAdmin() || (int) $user->id === (int) $stream->user_id
+            || ($user->isFan() && in_array($stream->status, ['live', 'paused'], true));
         if (!$allowed) {
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
@@ -239,6 +265,19 @@ class StreamingController extends Controller
             'signalEvent' => $data['signal_event'] ?? null,
             'payload' => $data['payload'] ?? [],
         ]);
+    }
+
+    private function streamAllowsWebRtcSignaling(Stream $stream): bool
+    {
+        if (in_array($stream->status, ['live', 'paused'], true)) {
+            return true;
+        }
+
+        if ($stream->status !== 'pending') {
+            return false;
+        }
+
+        return auth()->check() && (int) auth()->id() === (int) $stream->user_id;
     }
 
     private function webrtcRelayDir(): string

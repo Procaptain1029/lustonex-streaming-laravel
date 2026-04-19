@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Stream;
 use App\Models\ActivityLog;
 use App\Events\NewChatMessage;
-use App\Events\StreamStarted;
 use App\Events\StreamEnded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,28 +21,48 @@ class StreamController extends Controller
         }
 
         $streams = $query->paginate(20)->withQueryString();
-        $activeStream = auth()->user()->streams()->where('status', 'live')->first();
+        $activeStream = auth()->user()->streams()
+            ->whereIn('status', ['live', 'paused', 'pending'])
+            ->orderByRaw("CASE WHEN status = 'live' THEN 0 WHEN status = 'paused' THEN 1 ELSE 2 END")
+            ->orderByDesc('id')
+            ->first();
 
         return view('model.streams.index', compact('streams', 'activeStream'));
     }
 
-    public function create()
+    public function goLive()
     {
-        
+        return view('model.streams.choose-live-mode', $this->streamSetupContext());
+    }
+
+    public function create(\Illuminate\Http\Request $request)
+    {
+        $liveMode = $request->query('mode', 'browser');
+        if (! in_array($liveMode, ['browser', 'obs'], true)) {
+            $liveMode = 'browser';
+        }
+
+        return view('model.streams.create', array_merge($this->streamSetupContext(), compact('liveMode')));
+    }
+
+    /**
+     * @return array{warningMessage: ?string, profile: \App\Models\Profile}
+     */
+    private function streamSetupContext(): array
+    {
         $profile = auth()->user()->profile;
 
-        if (!$profile) {
+        if (! $profile) {
             $profile = auth()->user()->profile()->create([
                 'display_name' => auth()->user()->name,
-                'verification_status' => 'pending'
+                'verification_status' => 'pending',
             ]);
         }
 
-        if (!$profile->stream_key) {
+        if (! $profile->stream_key) {
             $profile->generateStreamKey();
         }
 
-        
         $activeStreams = auth()->user()->streams()->whereIn('status', ['live', 'paused', 'pending'])->get();
 
         $warningMessage = null;
@@ -52,7 +71,7 @@ class StreamController extends Controller
             $warningMessage = __('admin.flash.stream.active_warning', ['count' => $activeStreams->count(), 'titles' => $titles]);
         }
 
-        return view('model.streams.create', compact('warningMessage', 'profile'));
+        return compact('warningMessage', 'profile');
     }
 
     public function store(Request $request)
@@ -84,20 +103,14 @@ class StreamController extends Controller
         $stream = auth()->user()->streams()->create([
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
-            'status' => 'live', 
+            'status' => 'pending',
             'stream_key' => $streamKey,
-            'rtmp_url' => "rtmp://127.0.0.1:1935/live/{$streamKey}",
+            'rtmp_url' => config('streaming.rtmp_public_url_base')."/{$streamKey}",
             'playback_url' => "/hls/live/{$streamKey}/index.m3u8",
-            'started_at' => now() 
+            'started_at' => null,
         ]);
 
-        
-        auth()->user()->profile()->update(['is_streaming' => true]); 
-
-        
-        event(new StreamStarted($stream));
-
-        ActivityLog::log('stream_created', 'Stream creado: ' . $stream->title, $stream);
+        ActivityLog::log('stream_created', 'Stream creado (pendiente de señal): '.$stream->title, $stream);
 
         return redirect()->route('model.streams.admin', $stream)
             ->with('success', __('admin.flash.stream.started'));
@@ -248,16 +261,14 @@ class StreamController extends Controller
         $this->authorize('delete', $stream);
 
         
-        if (in_array($stream->status, ['live', 'paused'])) {
+        if (in_array($stream->status, ['live', 'paused', 'pending'], true)) {
             $stream->update([
                 'status' => 'ended',
                 'ended_at' => now(),
             ]);
 
-            
             $stream->user->profile()->update(['is_streaming' => false]);
 
-            
             event(new StreamEnded($stream));
         }
 

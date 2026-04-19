@@ -561,19 +561,20 @@
             flex: 1;
         }
 
+        /* Móvil vertical: marco más alto para que el vídeo no quede en una franja pequeña */
+        @media (max-width: 1024px) and (orientation: portrait) {
+            .player-window {
+                aspect-ratio: 9 / 16;
+                max-height: min(78vh, 720px);
+                margin-left: auto;
+                margin-right: auto;
+            }
+        }
+
         .player-aspect-ratio {
             width: 100%;
             height: 100%;
             position: relative;
-        }
-
-        .player-window {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #000;
-            position: relative;
-            overflow: hidden;
-            border-radius: 20px;
         }
 
         #hlsProfilePlayer {
@@ -2336,6 +2337,14 @@
                     }
                 });
 
+                const tryPlay = () => {
+                    video.muted = true;
+                    const p = video.play();
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(() => {});
+                    }
+                };
+
                 const startHlsFallback = () => {
                     if (hlsStarted) return;
                     hlsStarted = true;
@@ -2352,10 +2361,19 @@
                         });
                         hls.loadSource(url);
                         hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => tryPlay());
+                        hls.on(Hls.Events.ERROR, () => {});
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = url;
+                        video.addEventListener('loadedmetadata', () => tryPlay(), { once: true });
                     }
+                    tryPlay();
                 };
+
+                /* Móvil: controles nativos (play / pantalla completa). Los custom están ocultos con .pc-only-control */
+                if (window.matchMedia && window.matchMedia('(max-width: 1024px)').matches) {
+                    video.setAttribute('controls', 'controls');
+                }
 
                 if (shouldTryWebRtc && window.WebRTCLowLatency) {
                     const webrtc = new WebRTCLowLatency();
@@ -3131,9 +3149,11 @@
 
     <div id="floatingPlayerContainer" class="floating-player">
         <div class="floating-content"></div>
-        <button class="close-floating" onclick="closeFloatingPlayer()">
+        <button type="button" class="close-floating" onclick="closeFloatingPlayer()" aria-label="Cerrar reproductor flotante">
             <i class="fas fa-times"></i>
-     <script>
+        </button>
+    </div>
+    <script>
         document.addEventListener('DOMContentLoaded', function () {
             const playerSection = document.querySelector('.player-aspect-ratio');
             const videoElement = document.getElementById('hlsProfilePlayer');
@@ -3240,16 +3260,33 @@
                     else icon.classList.add('fa-volume-up');
                 };
 
-                // Fullscreen Logic
-                fullscreenBtn.addEventListener('click', () => {
-                    if (!document.fullscreenElement) {
-                        videoElement.requestFullscreen().catch(err => {
-                            console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-                        });
-                    } else {
-                        document.exitFullscreen();
+                const tryWebkitVideoFullscreen = () => {
+                    const v = videoElement;
+                    if (v && typeof v.webkitEnterFullscreen === 'function') {
+                        try {
+                            v.webkitEnterFullscreen();
+                        } catch (_) {}
                     }
-                });
+                };
+
+                const enterFullscreen = () => {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen().catch(() => {});
+                        return;
+                    }
+                    const v = videoElement;
+                    if (v.requestFullscreen) {
+                        v.requestFullscreen().catch(() => tryWebkitVideoFullscreen());
+                    } else {
+                        tryWebkitVideoFullscreen();
+                    }
+                };
+
+                fullscreenBtn.addEventListener('click', enterFullscreen);
+                fullscreenBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    enterFullscreen();
+                }, { passive: false });
 
                 // Autohide Logic
                 const showControls = () => {
@@ -3264,7 +3301,11 @@
                     }
                 };
 
-                document.querySelector('.player-aspect-ratio').addEventListener('mousemove', showControls);
+                const stage = document.querySelector('.player-aspect-ratio');
+                if (stage) {
+                    stage.addEventListener('mousemove', showControls);
+                    stage.addEventListener('touchstart', showControls, { passive: true });
+                }
                 videoElement.addEventListener('play', showControls);
                 
                 // Initial sync

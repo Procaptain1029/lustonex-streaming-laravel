@@ -366,7 +366,7 @@
                 <!-- Quick Actions -->
                 <div class="sh-actions-grid">
                     @if($profile->verification_status === 'approved')
-                        <a href="{{ route('model.streams.create') }}" class="sh-action-btn primary">
+                        <a href="{{ route('model.streams.go-live') }}" class="sh-action-btn primary">
                             <i class="fas fa-broadcast-tower"></i>
                             <span>{{ __('model.dashboard.actions.stream') }}</span>
                         </a>

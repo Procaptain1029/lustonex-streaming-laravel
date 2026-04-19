@@ -473,7 +473,7 @@
             <div class="top-stats-group" style="font-size: 0.75rem; border-left: 1px solid var(--twitch-border); padding-left: 1rem;">
                 <div>
                     <span style="color: var(--text-muted);">RTMP:</span> 
-                    <span style="font-family: monospace;">rtmp://127.0.0.1:1935/live</span>
+                    <span style="font-family: monospace;">{{ config('streaming.rtmp_public_url_base') }}</span>
                 </div>
                 <div>
                     <span style="color: var(--text-muted);">CLE:</span>
@@ -493,7 +493,9 @@
                 
                 <div class="player-container">
                     <div class="player-overlay">
-                        @if($stream->status === 'live' || $stream->status === 'paused')
+                        @if($stream->status === 'pending')
+                            <div class="badge-live" style="background:#b45309;">{{ __('model.streams.admin.status_pending') }}</div>
+                        @elseif($stream->status === 'live' || $stream->status === 'paused')
                             <div class="badge-live">{{ __('model.streams.admin.status_live') }}</div>
                         @else
                             <div class="badge-live" style="background:#555">{{ __('model.streams.admin.status_offline') }}</div>
@@ -506,9 +508,18 @@
                         style="{{ $stream->status === 'live' || $stream->status === 'paused' ? '' : 'display:none;' }}">
                     </video>
                     <div id="adminPlayerPlaceholder" class="empty-state" style="{{ $stream->status === 'live' || $stream->status === 'paused' ? 'display:none;' : '' }}">
-                        <i class="fas fa-video-slash" style="font-size: 3rem; margin-bottom: 1rem; color: rgba(255,255,255,0.1)"></i>
-                        <h3>{{ __('model.streams.admin.offline_title') }}</h3>
-                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">{{ __('model.streams.admin.offline_desc') }}</p>
+                        @if($stream->status === 'pending')
+                            <i class="fas fa-satellite-dish" style="font-size: 3rem; margin-bottom: 1rem; color: rgba(212,175,55,0.35)"></i>
+                            <h3>{{ __('model.streams.admin.pending_title') }}</h3>
+                            <p style="font-size: 0.8rem; margin-top: 0.5rem;">{{ __('model.streams.admin.pending_desc') }}</p>
+                            <p style="margin-top: 1rem;">
+                                <a href="{{ route('model.streams.create', ['mode' => 'obs']) }}" style="color: #d4af37; font-weight: 700;">{{ __('model.streams.admin.pending_link_obs') }}</a>
+                            </p>
+                        @else
+                            <i class="fas fa-video-slash" style="font-size: 3rem; margin-bottom: 1rem; color: rgba(255,255,255,0.1)"></i>
+                            <h3>{{ __('model.streams.admin.offline_title') }}</h3>
+                            <p style="font-size: 0.8rem; margin-top: 0.5rem;">{{ __('model.streams.admin.offline_desc') }}</p>
+                        @endif
                     </div>
                 </div>
 
@@ -539,7 +550,7 @@
                     </button>
                     <button id="adminWebRtcToggleBtn" class="shortcut-tile active-bg" type="button" onclick="toggleWebRtcAdminPreview()">
                         <div class="tile-icon"><i class="fas fa-satellite-dish"></i></div>
-                        <div id="adminWebRtcToggleLabel" class="tile-text">Go Live<br>WebRTC</div>
+                        <div id="adminWebRtcToggleLabel" class="tile-text">{!! __('model.streams.admin.webrtc_btn_start') !!}</div>
                     </button>
 
                     <form action="{{ route('model.streams.end', $stream) }}" method="POST" id="endStreamForm" style="margin: 0;">
@@ -676,6 +687,10 @@
         let lastMessageId = {{ $stream->chatMessages->last()->id ?? 0 }};
         let currentUserId = {{ auth()->id() }};
         let pauseMode = '{{ auth()->user()->profile->pause_mode ?? 'none' }}';
+        const WEBRTC_UI = {
+            start: @json(__('model.streams.admin.webrtc_btn_start')),
+            stop: @json(__('model.streams.admin.webrtc_btn_stop')),
+        };
 
         function updateAdminWebRtcToggleUI() {
             const btn = document.getElementById('adminWebRtcToggleBtn');
@@ -687,14 +702,14 @@
                 btn.classList.remove('active-bg');
                 btn.classList.add('danger-bg');
                 icon.className = 'fas fa-stop-circle';
-                label.innerHTML = 'Stop Live<br>WebRTC';
+                label.innerHTML = WEBRTC_UI.stop;
                 return;
             }
 
             btn.classList.remove('danger-bg');
             btn.classList.add('active-bg');
             icon.className = 'fas fa-satellite-dish';
-            label.innerHTML = 'Go Live<br>WebRTC';
+            label.innerHTML = WEBRTC_UI.start;
         }
 
         updateAdminWebRtcToggleUI();
@@ -1083,9 +1098,17 @@
                 const response = await fetch(`/api/stream/${streamId}/info`);
                 const data = await response.json();
 
+                if (data.status === 'pending') {
+                    document.getElementById('streamDuration').innerText = '--:--';
+                    return;
+                }
                 if (data.status === 'live' || data.status === 'paused') {
                     document.getElementById('viewerCount').innerText = data.viewers_count.toLocaleString();
-                    updateDuration(data.started_at);
+                    if (data.started_at) {
+                        updateDuration(data.started_at);
+                    } else {
+                        document.getElementById('streamDuration').innerText = '--:--';
+                    }
                 } else if (data.status === 'ended') {
                     location.reload(); // Finalizar si el servidor detecta fin
                 }
@@ -1217,7 +1240,9 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            @if($stream->status === 'live' || $stream->status === 'paused')
             initHls();
+            @endif
             
             // Actualizar datos del stream (vista, estado, on/off)
             setInterval(updateStreamData, 5000);

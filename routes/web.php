@@ -122,6 +122,7 @@ Route::middleware(['auth', 'role:model', 'verified', 'model.onboarding'])->prefi
     });
 
 
+    Route::get('/streams/go-live', [ModelStreamController::class, 'goLive'])->name('streams.go-live');
     Route::resource('streams', ModelStreamController::class)->except(['edit', 'update']);
     Route::get('/streams/{stream}/admin', [ModelStreamController::class, 'admin'])->name('streams.admin');
     Route::get('/streams/{stream}/live', [ModelStreamController::class, 'live'])->name('streams.live');

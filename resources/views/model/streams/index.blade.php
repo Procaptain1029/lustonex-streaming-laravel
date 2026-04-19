@@ -419,7 +419,7 @@
             <h1 class="page-title">{{ __('model.streams.index.title') }}</h1>
             <p class="page-subtitle">{{ __('model.streams.index.subtitle') }}</p>
         </div>
-        <a href="{{ route('model.streams.create') }}" class="sh-btn-create">
+        <a href="{{ route('model.streams.go-live') }}" class="sh-btn-create">
             <i class="fas fa-video"></i> {{ __('model.streams.index.btn_create') }}
         </a>
     </div>
@@ -428,7 +428,11 @@
         <div class="sh-active-hero">
             <div>
                 <div class="sh-live-pill">
-                    <span class="sh-live-pulse"></span> {{ __('model.streams.index.live_now') }}
+                    @if($activeStream->status === 'pending')
+                        <span class="sh-live-pulse" style="background:#f59e0b;"></span> {{ __('model.streams.index.preparing_now') }}
+                    @else
+                        <span class="sh-live-pulse"></span> {{ __('model.streams.index.live_now') }}
+                    @endif
                 </div>
                 <h2 style="font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 24px; line-height: 1.2;">
                     {{ $activeStream->title }}
@@ -443,7 +447,12 @@
                     </div>
                     <div>
                         <div style="font-size: 22px; font-weight: 800; color: #fff;">
-                            {{ $activeStream->started_at->diffForHumans(null, true) }}</div>
+                            @if($activeStream->started_at)
+                                {{ $activeStream->started_at->diffForHumans(null, true) }}
+                            @else
+                                —
+                            @endif
+                        </div>
                         <div style="font-size: 11px; text-transform: uppercase; color: rgba(255,255,255,0.5);">{{ __('model.streams.index.elapsed_time') }}</div>
                     </div>
                 </div>
@@ -593,7 +602,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            @if($activeStream)
+            @if($activeStream && $activeStream->status !== 'pending')
                 const video = document.getElementById('miniLivePlayer');
                 const streamUrl = "{{ asset('hls/live/' . auth()->user()->profile->stream_key . '/index.m3u8') }}";
 

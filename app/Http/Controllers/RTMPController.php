@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\StreamStarted;
 use App\Models\Stream;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -32,17 +33,28 @@ class RTMPController extends Controller
         
         
         
-        $stream = $profile->user->streams()->where('status', 'live')->first();
-        
+        $stream = $profile->user->streams()
+            ->whereIn('status', ['pending', 'live'])
+            ->orderByDesc('id')
+            ->first();
+
         if ($stream) {
-            
-            $stream->update([
+            $wasPending = $stream->status === 'pending';
+
+            $updates = [
                 'status' => 'live',
-                'started_at' => now(),
-                'rtmp_url' => "rtmp://127.0.0.1:1935/live/{$streamKey}",
-                'hls_url' => "/hls/live/{$streamKey}/index.m3u8"
-            ]);
-            
+                'rtmp_url' => config('streaming.rtmp_public_url_base')."/{$streamKey}",
+                'hls_url' => "/hls/live/{$streamKey}/index.m3u8",
+            ];
+            if (! $stream->started_at) {
+                $updates['started_at'] = now();
+            }
+            $stream->update($updates);
+
+            if ($wasPending) {
+                event(new StreamStarted($stream));
+            }
+
             Log::info("RTMP Auth successful: Stream record updated", ['stream_id' => $stream->id]);
         } else {
             Log::info("RTMP Auth successful: Profile valid, but no active stream record yet (Test Signal mode)", ['user_id' => $profile->user_id]);
@@ -245,7 +257,7 @@ class RTMPController extends Controller
         return response()->json([
             'success' => true,
             'stream_key' => $streamKey,
-            'rtmp_url' => "rtmp://127.0.0.1:1935/live",
+            'rtmp_url' => config('streaming.rtmp_public_url_base'),
             'hls_url' => "/hls/live/{$streamKey}/index.m3u8",
             'message' => __('admin.flash.rtmp.key_generated')
         ]);

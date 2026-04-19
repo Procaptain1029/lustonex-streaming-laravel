@@ -442,7 +442,7 @@ class Profile extends Model
 
     public function getStreamUrl()
     {
-        return "rtmp://127.0.0.1:1935/live/{$this->stream_key}";
+        return config('streaming.rtmp_public_url_base')."/{$this->stream_key}";
     }
 
     public function getHlsUrl()

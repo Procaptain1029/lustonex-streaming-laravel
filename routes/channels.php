@@ -36,12 +36,20 @@ Broadcast::channel('stream.{streamId}', function ($user, $streamId) {
 
 Broadcast::channel('presence-stream.{streamId}', function ($user, $streamId) {
     $stream = \App\Models\Stream::find($streamId);
-    if (!$stream || !in_array($stream->status, ['live', 'paused'], true)) {
+    if (! $stream) {
+        return false;
+    }
+
+    if ($stream->status === 'pending') {
+        return $user->isAdmin() || (int) $user->id === (int) $stream->user_id;
+    }
+
+    if (! in_array($stream->status, ['live', 'paused'], true)) {
         return false;
     }
 
     // WebRTC signaling channel: allow authenticated fans to join while stream is active.
-    if (!$user->isAdmin() && $user->id !== $stream->user_id && !$user->isFan()) {
+    if (! $user->isAdmin() && $user->id !== $stream->user_id && ! $user->isFan()) {
         return false;
     }
 

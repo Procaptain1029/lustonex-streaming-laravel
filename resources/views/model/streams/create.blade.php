@@ -7,7 +7,9 @@
     <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
     <a href="{{ route('model.streams.index') }}" class="breadcrumb-item">{{ __('model.streams.index.title') }}</a>
     <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
-    <a href="{{ route('model.streams.create') }}" class="breadcrumb-item active">{{ __('model.streams.create.breadcrumb_new') }}</a>
+    <a href="{{ route('model.streams.go-live') }}" class="breadcrumb-item">{{ __('model.streams.go_live.breadcrumb') }}</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">{{ __('model.streams.create.breadcrumb_new') }}</span>
 @endsection
 
 @section('styles')
@@ -259,6 +261,16 @@
             margin-bottom: 1.5rem;
         }
 
+        .setup-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .setup-grid-browser {
+            grid-template-columns: 1fr !important;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
         /* --- RESPONSIVE DESIGN --- */
 
         /* Tablat (≤ 900px) */
@@ -424,16 +436,21 @@
 @endsection
 
 @section('content')
+    @php
+        $isObsMode = ($liveMode ?? 'browser') === 'obs';
+    @endphp
     <div class="setup-container">
         <div style="margin-bottom: 3rem;">
             <h1 class="page-title" style="font-size: 28px; color: #d4af37; margin-bottom: 0.5rem; font-family: 'Poppins', sans-serif;">{{ __('model.streams.create.header') }}</h1>
-            <p class="page-subtitle" style="color: #ffffff; font-size: 16px;">{{ __('model.streams.create.subtitle') }}</p>
+            <p class="page-subtitle" style="color: #ffffff; font-size: 16px;">
+                {{ $isObsMode ? __('model.streams.create.subtitle_obs') : __('model.streams.create.subtitle_browser') }}
+            </p>
         </div>
 
         <form action="{{ route('model.streams.store') }}" method="POST" id="mainSetupForm">
             @csrf
 
-            <div class="setup-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div class="setup-grid {{ $isObsMode ? '' : 'setup-grid-browser' }}" style="display: grid; gap: 2rem;">
 
                 <div style="display: flex; flex-direction: column; gap: 2rem;">
 
@@ -453,7 +470,26 @@
                         </div>
                     </div>
 
+                    @if (! $isObsMode)
+                        <div class="glass-card" style="border-color: rgba(34, 197, 94, 0.35);">
+                            <h3 class="section-title"><i class="fas fa-video"></i> {{ __('model.streams.create.section_browser') }}</h3>
+                            <p style="color: rgba(255,255,255,0.75); font-size: 0.95rem; line-height: 1.55; margin: 0;">
+                                {{ __('model.streams.create.browser_info') }}
+                            </p>
+                            <p style="margin: 1.25rem 0 0 0;">
+                                <a href="{{ route('model.streams.create', ['mode' => 'obs']) }}" style="color: #d4af37; font-weight: 700; text-decoration: underline;">
+                                    {{ __('model.streams.create.link_switch_obs') }}
+                                </a>
+                            </p>
+                        </div>
+                    @endif
 
+                    @if ($isObsMode)
+                    <p style="margin: 0 0 1rem 0;">
+                        <a href="{{ route('model.streams.create', ['mode' => 'browser']) }}" style="color: #d4af37; font-weight: 700; text-decoration: underline;">
+                            {{ __('model.streams.create.link_switch_browser') }}
+                        </a>
+                    </p>
                     <div class="glass-card">
                         <h3 class="section-title"><i class="fas fa-terminal"></i> {{ __('model.streams.create.section_obs_guide') }}</h3>
                         <div class="setup-steps">
@@ -481,9 +517,11 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                 </div>
 
 
+                @if ($isObsMode)
                 <div style="display: flex; flex-direction: column; gap: 2rem;">
 
                     <div class="glass-card" style="border-color: rgba(212, 175, 55, 0.3);">
@@ -494,7 +532,7 @@
                                 <span class="config-label-text">{{ __('model.streams.create.label_server_url') }}</span>
                             </div>
                             <div class="copy-panel">
-                                <input type="text" value="rtmp://www.lustonex.com:1935/live" readonly class="copy-input"
+                                <input type="text" value="{{ config('streaming.rtmp_public_url_base') }}" readonly class="copy-input"
                                     id="serverUrl">
                                 <button type="button" class="btn-copy-action" onclick="copyVal('serverUrl', this)">
                                     <i class="fas fa-copy"></i>
@@ -558,6 +596,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
             </div>
 
 
@@ -566,7 +605,7 @@
                     <i class="fas fa-broadcast-tower"></i> {{ __('model.streams.create.btn_start_live') }}
                 </button>
                 <p style="color: rgba(255,255,255,0.3); font-size: 0.85rem; margin-top: 1rem;">
-                    {{ __('model.streams.create.hint_start') }}
+                    {{ $isObsMode ? __('model.streams.create.hint_start') : __('model.streams.create.hint_start_browser') }}
                 </p>
             </div>
         </form>

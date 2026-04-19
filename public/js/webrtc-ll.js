@@ -554,6 +554,7 @@ class WebRTCLowLatency {
             pc.ontrack = (event) => {
                 if (!this.remoteVideoElement || !event.streams[0]) return;
                 this.remoteVideoElement.srcObject = event.streams[0];
+                this.remoteVideoElement.muted = true;
                 this._bindRemoteVideoReadySignals(this.remoteVideoElement);
                 this.remoteVideoElement.play().catch(() => {});
                 window.dispatchEvent(new CustomEvent("webrtc-peer-connected"));
@@ -577,7 +578,8 @@ class WebRTCLowLatency {
         this.remoteVideoReadyBound = true;
 
         const markReady = () => {
-            if (videoEl.readyState >= 2 && !videoEl.paused) {
+            // Primer fotograma decodificado: no exigir !paused (móviles bloquean autoplay con audio).
+            if (videoEl.readyState >= 2) {
                 window.dispatchEvent(new CustomEvent("webrtc-video-ready"));
             }
         };

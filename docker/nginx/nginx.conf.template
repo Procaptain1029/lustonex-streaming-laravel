@@ -1,0 +1,91 @@
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+error_log /var/log/nginx/error.log warn;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 2048;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 100M;
+    server_tokens off;
+
+    server {
+        listen 127.0.0.1:8080;
+
+        location /stat {
+            rtmp_stat all;
+        }
+    }
+
+    server {
+        listen $PORT;
+        server_name _;
+        root /var/www/html/public;
+        index index.php index.html;
+
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location /hls/ {
+            alias /var/www/html/public/hls/;
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+            add_header Access-Control-Allow-Origin *;
+            types {
+                application/vnd.apple.mpegurl m3u8;
+                video/mp2t ts;
+            }
+        }
+
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_read_timeout 300;
+        }
+
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+    }
+}
+
+rtmp {
+    notify_method post;
+
+    server {
+        listen 1935;
+        chunk_size 4096;
+
+        application live {
+            live on;
+            record off;
+
+            allow publish all;
+            deny play all;
+
+            on_publish http://127.0.0.1:$PORT/api/rtmp/auth;
+            on_publish_done http://127.0.0.1:$PORT/api/rtmp/publish-done;
+            on_play http://127.0.0.1:$PORT/api/rtmp/play;
+            on_play_done http://127.0.0.1:$PORT/api/rtmp/play-done;
+
+            hls on;
+            hls_nested on;
+            hls_path /var/www/html/public/hls/live;
+            hls_fragment 3;
+            hls_playlist_length 30;
+            hls_continuous on;
+            hls_cleanup on;
+        }
+    }
+}
