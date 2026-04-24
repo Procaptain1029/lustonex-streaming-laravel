@@ -1208,11 +1208,108 @@ E-mail: <a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</
     'dmca' => [
         'title' => 'DMCA / Copyright',
         'breadcrumb' => 'Legal / L1X',
-        'content' => '<h2>Notificação de Infração</h2><p>Se você acredita que seu trabalho foi copiado de uma forma que constitui infração de direitos autorais...</p>',
+        'content' => '
+<p><strong>POL&Iacute;TICA DE DMCA / DIREITOS AUTORAIS</strong><br>
+<strong>LUSTONEX LLC</strong><br>
+<strong>Plataforma:</strong> LustOneX (L1X)<br>
+<strong>Data de Vig&ecirc;ncia:</strong> 1 de Abril de 2026</p>
+
+<p>A LUSTONEX LLC respeita os direitos de propriedade intelectual de terceiros e espera que todos os usu&aacute;rios da plataforma LustOneX (&ldquo;Plataforma&rdquo;) fa&ccedil;am o mesmo.</p>
+
+<p>De acordo com o Digital Millennium Copyright Act (&ldquo;DMCA&rdquo;), 17 U.S.C. &sect; 512, e outras leis aplic&aacute;veis, a LUSTONEX LLC pode remover, desabilitar ou restringir o acesso a conte&uacute;do que seja alegado de boa-f&eacute; como infrator dos direitos autorais ou outros direitos de propriedade intelectual de terceiros.</p>
+
+<h2>1. Apresenta&ccedil;&atilde;o de Reclama&ccedil;&atilde;o por Direitos Autorais</h2>
+
+<p>Se voc&ecirc; &eacute; titular de direitos autorais, ou representante autorizado de um titular de direitos autorais, e acredita que o conte&uacute;do hospedado na Plataforma infringe seus direitos autorais, voc&ecirc; pode enviar uma notifica&ccedil;&atilde;o por escrito contendo as seguintes informa&ccedil;&otilde;es:</p>
+
+<ol>
+<li>uma assinatura f&iacute;sica ou eletr&ocirc;nica do titular dos direitos autorais ou representante autorizado;</li>
+<li>identifica&ccedil;&atilde;o da obra protegida por direitos autorais que se alega ter sido infringida;</li>
+<li>identifica&ccedil;&atilde;o do material supostamente infrator e informa&ccedil;&otilde;es razoavelmente suficientes para nos permitir localiz&aacute;-lo na Plataforma, incluindo a URL exata, se dispon&iacute;vel;</li>
+<li>seu nome legal completo, endere&ccedil;o postal, n&uacute;mero de telefone e endere&ccedil;o de e-mail;</li>
+<li>uma declara&ccedil;&atilde;o de que voc&ecirc; acredita de boa-f&eacute; que o uso do material da maneira reclamada n&atilde;o &eacute; autorizado pelo titular dos direitos autorais, seu agente ou pela lei;</li>
+<li>uma declara&ccedil;&atilde;o, feita sob pena de perj&uacute;rio, de que as informa&ccedil;&otilde;es na notifica&ccedil;&atilde;o s&atilde;o precisas e que voc&ecirc; est&aacute; autorizado a agir em nome do titular dos direitos autorais supostamente infringidos.</li>
+</ol>
+
+<h2>2. Agente Designado de Direitos Autorais</h2>
+
+<p>Todas as notifica&ccedil;&otilde;es DMCA devem ser enviadas ao nosso Agente de Direitos Autorais designado:</p>
+
+<p><strong>LUSTONEX LLC</strong><br>
+Attn: Copyright Agent<br>
+30 N Gould St, Ste R<br>
+Sheridan, WY 82801<br>
+United States<br>
+E-mail: <a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a></p>
+
+<h2>3. Contra-Notifica&ccedil;&atilde;o</h2>
+
+<p>Se voc&ecirc; acredita que o conte&uacute;do que publicou foi removido ou desabilitado como resultado de erro ou identifica&ccedil;&atilde;o incorreta, voc&ecirc; pode apresentar uma contra-notifica&ccedil;&atilde;o com as seguintes informa&ccedil;&otilde;es:</p>
+
+<ol>
+<li>sua assinatura f&iacute;sica ou eletr&ocirc;nica;</li>
+<li>identifica&ccedil;&atilde;o do material que foi removido ou desabilitado e o local em que o material aparecia antes de ser removido ou desabilitado;</li>
+<li>uma declara&ccedil;&atilde;o sob pena de perj&uacute;rio de que voc&ecirc; acredita de boa-f&eacute; que o material foi removido ou desabilitado como resultado de erro ou identifica&ccedil;&atilde;o incorreta;</li>
+<li>seu nome, endere&ccedil;o, n&uacute;mero de telefone e uma declara&ccedil;&atilde;o de que voc&ecirc; aceita a jurisdi&ccedil;&atilde;o do tribunal distrital federal do distrito judicial em que o endere&ccedil;o est&aacute; localizado, e que aceitar&aacute; a cita&ccedil;&atilde;o da pessoa que forneceu a notifica&ccedil;&atilde;o original.</li>
+</ol>
+
+<h2>4. Infratores Reincidentes</h2>
+
+<p>A LUSTONEX LLC, nas circunst&acirc;ncias apropriadas, encerrar&aacute; as contas de usu&aacute;rios que sejam infratores reincidentes de direitos de propriedade intelectual, de acordo com o DMCA e outras leis aplic&aacute;veis.</p>
+
+<h2>5. Limita&ccedil;&atilde;o de Responsabilidade</h2>
+
+<p>A LUSTONEX LLC reserva-se o direito de remover qualquer conte&uacute;do a qualquer momento, com ou sem aviso pr&eacute;vio, por qualquer motivo ou sem motivo algum, incluindo, mas n&atilde;o se limitando a, conte&uacute;do que a LUSTONEX LLC acredite violar o DMCA ou quaisquer direitos de propriedade intelectual aplic&aacute;veis.</p>
+',
     ],
     'compliance' => [
         'title' => '18 U.S.C. 2257 Compliance',
         'breadcrumb' => 'Legal / L1X',
-        'content' => '<h2>Declaração de Conformidade</h2><p>Todas as informações exigidas pelo 18 U.S.C. 2257 estão disponíveis em nossos registros...</p>',
+        'content' => '
+<p><strong>DECLARA&Ccedil;&Atilde;O DE CONFORMIDADE 18 U.S.C. &sect; 2257</strong><br>
+<strong>LUSTONEX LLC</strong><br>
+<strong>Plataforma:</strong> LustOneX (L1X)<br>
+<strong>Data de Vig&ecirc;ncia:</strong> 1 de Abril de 2026</p>
+
+<h2>1. Declara&ccedil;&atilde;o de Conformidade e Requisito de Idade</h2>
+
+<p>A LUSTONEX LLC mant&eacute;m uma pol&iacute;tica de <strong>Toler&acirc;ncia Zero</strong> contra a publica&ccedil;&atilde;o, transmiss&atilde;o ou hospedagem de qualquer conte&uacute;do que apresente indiv&iacute;duos menores de 18 anos (menores), Material de Abuso Sexual Infantil (CSAM), ou qualquer material que simule a apar&ecirc;ncia de um menor.</p>
+
+<p>Todos os criadores independentes s&atilde;o contratualmente obrigados a declarar, garantir e verificar que todas as pessoas que aparecem em qualquer representa&ccedil;&atilde;o visual de conduta sexualmente expl&iacute;cita real ou simulada disponibilizada atrav&eacute;s da Plataforma tinham pelo menos <strong>dezoito (18) anos de idade</strong> no momento em que tal conte&uacute;do foi produzido.</p>
+
+<h2>2. Procedimentos de Manuten&ccedil;&atilde;o de Registros e Verifica&ccedil;&atilde;o</h2>
+
+<p>Na medida exigida pela lei aplic&aacute;vel, incluindo 18 U.S.C. &sect; 2257 e o T&iacute;tulo 28 do C&oacute;digo de Regulamentos Federais (C.F.R.) Parte 75, a LUSTONEX LLC implementa procedimentos razo&aacute;veis projetados para verificar a identidade e idade dos criadores de conte&uacute;do independentes (Modelos e Est&uacute;dios) antes de monetizar ou transmitir conte&uacute;do na Plataforma.</p>
+
+<p>Estes procedimentos de verifica&ccedil;&atilde;o geralmente incluem:</p>
+
+<ul>
+<li>A apresenta&ccedil;&atilde;o obrigat&oacute;ria de uma identifica&ccedil;&atilde;o fotogr&aacute;fica v&aacute;lida emitida pelo governo (por exemplo, passaporte, carteira de identidade ou carteira de motorista).</li>
+<li>Verifica&ccedil;&otilde;es de vivacidade e/ou prova fotogr&aacute;fica secund&aacute;ria (por exemplo, uma &ldquo;selfie&rdquo; em tempo real segurando o documento de identifica&ccedil;&atilde;o).</li>
+<li>Consentimento escrito e declara&ccedil;&atilde;o do criador confirmando sua maioridade legal e autoriza&ccedil;&atilde;o para distribuir o conte&uacute;do.</li>
+</ul>
+
+<h2>3. Natureza da Plataforma como Provedor de Hospedagem</h2>
+
+<p>A LUSTONEX LLC opera a Plataforma como provedora de servi&ccedil;os de computa&ccedil;&atilde;o interativa, intermedi&aacute;ria tecnol&oacute;gica e plataforma de hospedagem. As representa&ccedil;&otilde;es visuais de conduta sexualmente expl&iacute;cita hospedadas na Plataforma constituem Conte&uacute;do Gerado pelo Usu&aacute;rio (UGC).</p>
+
+<p>A LUSTONEX LLC n&atilde;o &eacute; a produtora principal, diretora ou criadora das representa&ccedil;&otilde;es visuais carregadas, transmitidas ou distribu&iacute;das por criadores independentes. Os produtores principais (os Modelos e Est&uacute;dios independentes) assumem a responsabilidade legal principal de criar, manter e fornecer os registros originais de consentimento e verifica&ccedil;&atilde;o de idade conforme exigido pela lei federal onde aplic&aacute;vel.</p>
+
+<p>Como plataforma de hospedagem, a LUSTONEX LLC exige que os criadores cumpram as medidas de verifica&ccedil;&atilde;o e mant&eacute;m registros de integra&ccedil;&atilde;o de seus criadores conforme aplic&aacute;vel e necess&aacute;rio para apoiar seu framework de conformidade.</p>
+
+<h2>4. Custodiante de Registros</h2>
+
+<p>Na medida em que a LUSTONEX LLC seja obrigada a manter registros sob 18 U.S.C. &sect; 2257 e 28 C.F.R. Parte 75, tais registros relativos aos criadores independentes registrados na Plataforma s&atilde;o mantidos pelo Custodiante de Registros designado no seguinte local comercial principal:</p>
+
+<p><strong>Custodiante de Registros:</strong> Contato Jur&iacute;dico e de Conformidade, LUSTONEX LLC<br>
+<strong>Endere&ccedil;o do Escrit&oacute;rio Registrado:</strong> 30 N Gould St, Ste R, Sheridan, WY 82801, United States of America<br>
+<strong>E-mail para Consultas Jur&iacute;dicas/de Conformidade:</strong> <a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a></p>
+
+<p>Os registros s&atilde;o mantidos de acordo com a lei aplic&aacute;vel e podem ser disponibilizados &agrave;s autoridades devidamente autorizadas quando exigido por processo legal.</p>
+
+<h2>5. Den&uacute;ncia de Conte&uacute;do Ilegal</h2>
+
+<p>Se voc&ecirc; acredita que qualquer conte&uacute;do hospedado na Plataforma envolve um indiv&iacute;duo menor de 18 anos, retrata atos n&atilde;o consensuais, ou de outra forma viola nossa pol&iacute;tica de Toler&acirc;ncia Zero ou a lei federal, denuncie imediatamente &agrave; nossa Equipe de Conformidade em <strong><a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a></strong>. A LUSTONEX LLC agir&aacute; de forma expedita para revisar e remover tal conte&uacute;do, encerrar contas de usu&aacute;rios infratores, e poder&aacute; relatar o incidente ao Centro Nacional para Crian&ccedil;as Desaparecidas e Exploradas (NCMEC) e/ou &agrave;s autoridades policiais competentes quando exigido ou razoavelmente necess&aacute;rio sob a lei aplic&aacute;vel.</p>
+',
     ],
 ];

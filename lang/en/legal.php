@@ -1208,11 +1208,108 @@ Email: <a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a
     'dmca' => [
         'title' => 'DMCA / Copyright',
         'breadcrumb' => 'Legal / L1X',
-        'content' => '<h2>Infringement Notification</h2><p>If you believe that your work has been copied in a way that constitutes copyright infringement...</p>',
+        'content' => '
+<p><strong>DMCA / COPYRIGHT POLICY</strong><br>
+<strong>LUSTONEX LLC</strong><br>
+<strong>Platform:</strong> LustOneX (L1X)<br>
+<strong>Effective Date:</strong> April 1, 2026</p>
+
+<p>LUSTONEX LLC respects the intellectual property rights of others and expects all users of the LustOneX platform (&ldquo;Platform&rdquo;) to do the same.</p>
+
+<p>In accordance with the Digital Millennium Copyright Act (&ldquo;DMCA&rdquo;), 17 U.S.C. &sect; 512, and other applicable laws, LUSTONEX LLC may remove, disable, or restrict access to content that is alleged in good faith to infringe the copyright or other intellectual property rights of third parties.</p>
+
+<h2>1. Filing a Copyright Complaint</h2>
+
+<p>If you are a copyright owner, or an authorized representative of a copyright owner, and you believe that content hosted on the Platform infringes your copyright, you may submit a written notice containing the following information:</p>
+
+<ol>
+<li>a physical or electronic signature of the copyright owner or authorized representative;</li>
+<li>identification of the copyrighted work claimed to have been infringed;</li>
+<li>identification of the allegedly infringing material and information reasonably sufficient to allow us to locate it on the Platform, including the exact URL if available;</li>
+<li>your full legal name, mailing address, telephone number, and email address;</li>
+<li>a statement that you have a good faith belief that the use of the material in the manner complained of is not authorized by the copyright owner, its agent, or the law;</li>
+<li>a statement, made under penalty of perjury, that the information in the notification is accurate and that you are authorized to act on behalf of the owner of the copyright that is allegedly infringed.</li>
+</ol>
+
+<h2>2. Designated Copyright Agent</h2>
+
+<p>All DMCA notices should be sent to our designated Copyright Agent:</p>
+
+<p><strong>LUSTONEX LLC</strong><br>
+Attn: Copyright Agent<br>
+30 N Gould St, Ste R<br>
+Sheridan, WY 82801<br>
+United States<br>
+Email: <a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a></p>
+
+<h2>3. Counter-Notification</h2>
+
+<p>If you believe that content you posted was removed or disabled as a result of mistake or misidentification, you may file a counter-notification with the following information:</p>
+
+<ol>
+<li>your physical or electronic signature;</li>
+<li>identification of the material that was removed or disabled and the location at which the material appeared before it was removed or disabled;</li>
+<li>a statement under penalty of perjury that you have a good faith belief that the material was removed or disabled as a result of mistake or misidentification;</li>
+<li>your name, address, telephone number, and a statement that you consent to the jurisdiction of the federal district court for the judicial district in which the address is located, and that you will accept service of process from the person who provided the original notification.</li>
+</ol>
+
+<h2>4. Repeat Infringers</h2>
+
+<p>LUSTONEX LLC will, in appropriate circumstances, terminate the accounts of users who are repeat infringers of intellectual property rights, in accordance with the DMCA and other applicable laws.</p>
+
+<h2>5. Limitation of Liability</h2>
+
+<p>LUSTONEX LLC reserves the right to remove any content at any time, with or without notice, for any reason or no reason, including but not limited to content that LUSTONEX LLC believes violates the DMCA or any applicable intellectual property rights.</p>
+',
     ],
     'compliance' => [
         'title' => '18 U.S.C. 2257 Compliance',
         'breadcrumb' => 'Legal / L1X',
-        'content' => '<h2>Statement of Compliance</h2><p>All information required by 18 U.S.C. 2257 is available in our records...</p>',
+        'content' => '
+<p><strong>18 U.S.C. &sect; 2257 COMPLIANCE STATEMENT</strong><br>
+<strong>LUSTONEX LLC</strong><br>
+<strong>Platform:</strong> LustOneX (L1X)<br>
+<strong>Effective Date:</strong> April 1, 2026</p>
+
+<h2>1. Statement of Compliance and Age Requirement</h2>
+
+<p>LUSTONEX LLC maintains a <strong>Zero Tolerance</strong> policy against the publication, transmission, or hosting of any content featuring individuals under the age of 18 (minors), Child Sexual Abuse Material (CSAM), or any material that simulates the appearance of a minor.</p>
+
+<p>All independent creators are contractually required to represent, warrant, and verify that all persons appearing in any visual depiction of actual or simulated sexually explicit conduct made available through the Platform were at least <strong>eighteen (18) years of age</strong> at the time such content was produced.</p>
+
+<h2>2. Record-Keeping and Verification Procedures</h2>
+
+<p>To the extent required by applicable law, including 18 U.S.C. &sect; 2257 and Title 28 of the Code of Federal Regulations (C.F.R.) Part 75, LUSTONEX LLC implements reasonable procedures designed to verify the identity and age of independent content creators (Models and Studios) prior to monetizing or broadcasting content on the Platform.</p>
+
+<p>These verification procedures generally include:</p>
+
+<ul>
+<li>The required submission of a valid, government-issued photo identification (e.g., passport, national ID, or driver\'s license).</li>
+<li>Liveness checks and/or secondary photographic proof (e.g., a real-time &ldquo;selfie&rdquo; holding the identification document).</li>
+<li>Written consent and representation by the creator confirming their age of legal majority and authorization to distribute the content.</li>
+</ul>
+
+<h2>3. Nature of Platform as a Hosting Provider</h2>
+
+<p>LUSTONEX LLC operates the Platform as an interactive computer service provider, technological intermediary, and hosting platform. The visual depictions of sexually explicit conduct hosted on the Platform constitute User Generated Content (UGC).</p>
+
+<p>LUSTONEX LLC is not the primary producer, director, or creator of the visual depictions uploaded, broadcast, or distributed by independent creators. The primary producers (the independent Models and Studios) bear the primary legal responsibility for creating, maintaining, and providing the original records of consent and age verification as required by federal law where applicable.</p>
+
+<p>As a hosting platform, LUSTONEX LLC requires creators to comply with verification measures and maintains onboarding records of its creators as applicable and necessary to support its compliance framework.</p>
+
+<h2>4. Custodian of Records</h2>
+
+<p>To the extent LUSTONEX LLC is required to maintain records under 18 U.S.C. &sect; 2257 and 28 C.F.R. Part 75, such records concerning the independent creators registered on the Platform are kept by the designated Custodian of Records at the following primary business location:</p>
+
+<p><strong>Custodian of Records:</strong> Legal and Compliance Contact, LUSTONEX LLC<br>
+<strong>Registered Office Address:</strong> 30 N Gould St, Ste R, Sheridan, WY 82801, United States of America<br>
+<strong>Email Contact for Legal/Compliance Inquiries:</strong> <a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a></p>
+
+<p>Records are maintained in accordance with applicable law and may be made available to duly authorized authorities where required by legal process.</p>
+
+<h2>5. Reporting Illegal Content</h2>
+
+<p>If you believe that any content hosted on the Platform involves an individual under the age of 18, depicts non-consensual acts, or otherwise violates our Zero Tolerance policy or federal law, please report it immediately to our Compliance Team at <strong><a href="mailto:lustonexofficial@gmail.com">lustonexofficial@gmail.com</a></strong>. LUSTONEX LLC will act expeditiously to review and remove such content, terminate offending user accounts, and may report the incident to the National Center for Missing &amp; Exploited Children (NCMEC) and/or appropriate law enforcement authorities where required or reasonably necessary under applicable law.</p>
+',
     ],
 ];
