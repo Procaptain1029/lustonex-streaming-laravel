@@ -250,6 +250,12 @@ class StreamingController extends Controller
         // Fast path: send everything inline via Pusher (no extra HTTP fetch needed).
         // If Pusher rejects (payload too large), fall back to cache relay.
         try {
+            Log::info('[WebRTC] Broadcasting signal', [
+                'event' => $signalEvent,
+                'stream' => $stream->id,
+                'size' => $payloadSize,
+                'driver' => config('broadcasting.default'),
+            ]);
             broadcast(new WebRTCSignalRelay(
                 streamId: (int) $stream->id,
                 senderUserId: (int) (auth()->id() ?? 0),
@@ -257,9 +263,11 @@ class StreamingController extends Controller
                 signalEvent: $signalEvent,
                 payload: $payload
             ))->toOthers();
+            Log::info('[WebRTC] Broadcast sent OK');
         } catch (\Throwable $e) {
-            Log::warning('[WebRTC] Inline broadcast failed, falling back to cache relay', [
+            Log::error('[WebRTC] Inline broadcast FAILED', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'payload_size' => $payloadSize,
             ]);
             $relayId = (string) Str::uuid();
