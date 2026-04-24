@@ -417,10 +417,12 @@ class WebRTCLowLatency {
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        // Wait for ICE gathering so the SDP contains all candidates (no trickle HTTP flood).
-        await this._waitForIceGathering(pc);
+        // Wait briefly for STUN candidates to be gathered into the SDP.
+        await this._waitForIceGathering(pc, 1000);
         this._requestVideoKeyframe(viewerPeerId);
 
+        console.log("[WebRTC-LL] Sending offer with candidates", pc.localDescription?.sdp?.match(/a=candidate/g)?.length || 0);
+        pc._sdpSent = true;
         this._sendSignal("webrtc-offer", {
             offer: this._encodeSessionDescription(pc.localDescription),
             targetPeerId: viewerPeerId
@@ -475,9 +477,11 @@ class WebRTCLowLatency {
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        // Wait for ICE gathering so the SDP contains all candidates.
-        await this._waitForIceGathering(pc);
+        // Wait briefly for STUN candidates to be gathered into the SDP.
+        await this._waitForIceGathering(pc, 1000);
 
+        console.log("[WebRTC-LL] Sending answer with candidates", pc.localDescription?.sdp?.match(/a=candidate/g)?.length || 0);
+        pc._sdpSent = true;
         this._sendSignal("webrtc-answer", {
             answer: this._encodeSessionDescription(pc.localDescription),
             targetPeerId: peerId
@@ -487,10 +491,12 @@ class WebRTCLowLatency {
     async _handleAnswer(data) {
         const peerId = data.senderPeerId;
         const pc = this.peerConnections.get(peerId);
+        console.log("[WebRTC-LL] _handleAnswer", { peerId, hasPC: !!pc, hasAnswer: !!data.answer, signalingState: pc?.signalingState });
         if (!pc || !data.answer) return;
 
         try {
             await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            console.log("[WebRTC-LL] Remote description (answer) SET OK, signalingState:", pc.signalingState);
             this._requestVideoKeyframe(peerId);
         } catch (error) {
             console.warn("[WebRTC-LL] Invalid answer SDP received", error, data.answer);
@@ -502,20 +508,24 @@ class WebRTCLowLatency {
     async _handleIceCandidate(data) {
         const peerId = data.senderPeerId;
         const pc = this.peerConnections.get(peerId);
-        if (!data.candidate) return;
+        // Support both single candidate and batched candidates array.
+        const candidates = data.candidates || (data.candidate ? [data.candidate] : []);
+        if (!candidates.length) return;
 
-        if (!pc || !pc.remoteDescription) {
-            if (!this.pendingIceCandidates.has(peerId)) {
-                this.pendingIceCandidates.set(peerId, []);
+        for (const candidate of candidates) {
+            if (!pc || !pc.remoteDescription) {
+                if (!this.pendingIceCandidates.has(peerId)) {
+                    this.pendingIceCandidates.set(peerId, []);
+                }
+                this.pendingIceCandidates.get(peerId).push(candidate);
+            } else {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    console.log("[WebRTC-LL] Added ICE candidate:", candidate.candidate?.split(" ")[7] || "unknown");
+                } catch (error) {
+                    console.warn("[WebRTC-LL] ICE add failed", error);
+                }
             }
-            this.pendingIceCandidates.get(peerId).push(data.candidate);
-            return;
-        }
-
-        try {
-            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (error) {
-            console.warn("[WebRTC-LL] ICE add failed", error);
         }
     }
 
@@ -539,6 +549,7 @@ class WebRTCLowLatency {
             return this.peerConnections.get(peerId);
         }
 
+        console.log("[WebRTC-LL] Creating PeerConnection with ICE servers:", JSON.stringify(this.iceServers));
         const pc = new RTCPeerConnection({
             iceServers: this.iceServers,
             bundlePolicy: "max-bundle",
@@ -547,10 +558,26 @@ class WebRTCLowLatency {
         });
         this.peerConnections.set(peerId, pc);
 
-        // Non-trickle ICE: do NOT send individual candidates via HTTP.
-        // Instead, we wait for ICE gathering to complete and send the full SDP
-        // with all candidates embedded. This avoids flooding the server.
-        pc.onicecandidate = () => {};
+        // Trickle ICE: send late-arriving candidates (e.g. TURN relay) to the remote peer.
+        // Most candidates will already be embedded in the SDP from the 1s wait above.
+        pc.onicecandidate = (event) => {
+            if (!event.candidate) {
+                console.log("[WebRTC-LL] ICE gathering complete (null candidate)");
+                return;
+            }
+            console.log("[WebRTC-LL] ICE candidate:", event.candidate.type, event.candidate.candidate);
+            // Only trickle candidates that arrive AFTER the SDP was sent (late TURN relay).
+            if (pc._sdpSent) {
+                this._sendSignal("webrtc-ice", {
+                    candidates: [event.candidate.toJSON()],
+                    targetPeerId: peerId
+                });
+            }
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log("[WebRTC-LL] ICE gathering state:", pc.iceGatheringState);
+        };
 
         if (!this.isBroadcaster) {
             pc.ontrack = (event) => {
@@ -563,7 +590,12 @@ class WebRTCLowLatency {
             };
         }
 
+        pc.oniceconnectionstatechange = () => {
+            console.log(`[WebRTC-LL] ICE connection state: ${pc.iceConnectionState}`, peerId);
+        };
+
         pc.onconnectionstatechange = () => {
+            console.log(`[WebRTC-LL] Connection state: ${pc.connectionState}`, peerId);
             if (this.isBroadcaster && pc.connectionState === "connected") {
                 this._scheduleQualityUpgrade();
             }
@@ -706,16 +738,22 @@ class WebRTCLowLatency {
      * Wait for ICE gathering to complete (or timeout). Once complete, pc.localDescription
      * contains all ICE candidates embedded in the SDP — no separate trickle messages needed.
      */
-    _waitForIceGathering(pc, timeoutMs = 500) {
+    _waitForIceGathering(pc, timeoutMs = 3000) {
         return new Promise((resolve) => {
             if (pc.iceGatheringState === "complete") {
+                console.log("[WebRTC-LL] ICE gathering already complete");
                 resolve();
                 return;
             }
-            const timer = setTimeout(resolve, timeoutMs);
+            const timer = setTimeout(() => {
+                console.warn("[WebRTC-LL] ICE gathering TIMEOUT after", timeoutMs, "ms — sending SDP with available candidates");
+                resolve();
+            }, timeoutMs);
             pc.addEventListener("icegatheringstatechange", () => {
+                console.log("[WebRTC-LL] ICE gathering state:", pc.iceGatheringState);
                 if (pc.iceGatheringState === "complete") {
                     clearTimeout(timer);
+                    console.log("[WebRTC-LL] ICE gathering complete");
                     resolve();
                 }
             });
