@@ -692,6 +692,7 @@
 @section('scripts')
     <script type="application/json" id="model-stream-broadcast-config">@json(['streamId' => $stream->id])</script>
     @vite(['resources/js/model-stream-admin-echo.js'])
+    <script>window.WEBRTC_ICE_SERVERS = @json(array_values(config('streaming.ice_servers', [])));</script>
     <script src="{{ asset('js/webrtc-ll.js') }}?v={{ filemtime(public_path('js/webrtc-ll.js')) }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>

@@ -29,7 +29,7 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('webrtc-signal', function (Request $request) {
-            return Limit::perMinute(180)->by($request->ip());
+            return Limit::perMinute(360)->by($request->ip());
         });
 
         $this->routes(function () {

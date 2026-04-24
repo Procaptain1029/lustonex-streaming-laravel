@@ -7,6 +7,7 @@ use App\Events\WebRTCSignalRelay;
 use App\Models\Stream;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -201,18 +202,38 @@ class StreamingController extends Controller
 
         $signalEvent = $validated['signalEvent'];
         $payload = $validated['payload'] ?? [];
+        $inlineMax = (int) config('streaming.webrtc_inline_max_bytes', 16000);
 
-        // Pusher broadcast payloads are small (~10KB). Full WebRTC SDP offers/answers exceed that and get
-        // truncated, which breaks setRemoteDescription. Store heavy signals in cache; broadcast only relayId.
-        $heavyEvents = ['webrtc-offer', 'webrtc-answer'];
-        if (in_array($signalEvent, $heavyEvents, true)) {
+        // Combined viewer-ready + join: increment viewer count in the same request.
+        if ($signalEvent === 'viewer-ready' && !empty($payload['joinViewer'])) {
+            $stream->increment('viewers_count');
+            unset($payload['joinViewer']);
+        }
+
+        // Try to send the full payload inline via Pusher (fastest path).
+        // Only fall back to cache relay if the serialized payload exceeds the Pusher-safe limit.
+        $fullPayload = $payload;
+        $payloadSize = strlen(json_encode($fullPayload, JSON_UNESCAPED_UNICODE));
+
+        if ($payloadSize > $inlineMax) {
+            // Payload too large for Pusher: store in cache, broadcast only relayId.
             $relayId = (string) Str::uuid();
-            // Persist outside Laravel cache: file cache can be cleared or misconfigured; large SDP must survive until GET.
-            $this->storeWebRtcRelayFile($relayId, [
+            $ttl = (int) config('streaming.webrtc_relay_ttl_seconds', 120);
+            Cache::put("webrtc_relay:{$relayId}", [
                 'stream_id' => (int) $stream->id,
                 'sender_peer_id' => $validated['senderPeerId'],
                 'signal_event' => $signalEvent,
                 'payload' => $payload,
+            ], $ttl);
+
+            // Verify cache write succeeded.
+            $verify = Cache::get("webrtc_relay:{$relayId}");
+            Log::info('[WebRTC] Cache relay stored', [
+                'relayId' => $relayId,
+                'size' => $payloadSize,
+                'inlineMax' => $inlineMax,
+                'cached' => $verify !== null,
+                'cache_driver' => config('cache.default'),
             ]);
 
             broadcast(new WebRTCSignalRelay(
@@ -226,13 +247,38 @@ class StreamingController extends Controller
             return response()->json(['success' => true]);
         }
 
-        broadcast(new WebRTCSignalRelay(
-            streamId: (int) $stream->id,
-            senderUserId: (int) (auth()->id() ?? 0),
-            senderPeerId: $validated['senderPeerId'],
-            signalEvent: $signalEvent,
-            payload: $payload
-        ))->toOthers();
+        // Fast path: send everything inline via Pusher (no extra HTTP fetch needed).
+        // If Pusher rejects (payload too large), fall back to cache relay.
+        try {
+            broadcast(new WebRTCSignalRelay(
+                streamId: (int) $stream->id,
+                senderUserId: (int) (auth()->id() ?? 0),
+                senderPeerId: $validated['senderPeerId'],
+                signalEvent: $signalEvent,
+                payload: $payload
+            ))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('[WebRTC] Inline broadcast failed, falling back to cache relay', [
+                'error' => $e->getMessage(),
+                'payload_size' => $payloadSize,
+            ]);
+            $relayId = (string) Str::uuid();
+            $ttl = (int) config('streaming.webrtc_relay_ttl_seconds', 120);
+            Cache::put("webrtc_relay:{$relayId}", [
+                'stream_id' => (int) $stream->id,
+                'sender_peer_id' => $validated['senderPeerId'],
+                'signal_event' => $signalEvent,
+                'payload' => $payload,
+            ], $ttl);
+
+            broadcast(new WebRTCSignalRelay(
+                streamId: (int) $stream->id,
+                senderUserId: (int) (auth()->id() ?? 0),
+                senderPeerId: $validated['senderPeerId'],
+                signalEvent: $signalEvent,
+                payload: ['relayId' => $relayId]
+            ))->toOthers();
+        }
 
         return response()->json(['success' => true]);
     }
@@ -261,8 +307,17 @@ class StreamingController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid relay id'], 422);
         }
 
-        $data = $this->readWebRtcRelayFile($relayId);
+        // Try cache first, then fall back to legacy file relay.
+        $data = Cache::get("webrtc_relay:{$relayId}");
         if (!$data) {
+            $data = $this->readWebRtcRelayFile($relayId);
+        }
+        if (!$data) {
+            Log::warning('[WebRTC] Relay not found', [
+                'relayId' => $relayId,
+                'stream_id' => $stream->id,
+                'cache_driver' => config('cache.default'),
+            ]);
             return response()->json(['success' => false, 'message' => 'Expired or unknown relay'], 404);
         }
 

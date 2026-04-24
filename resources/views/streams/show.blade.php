@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     
+    <script>window.WEBRTC_ICE_SERVERS = @json(array_values(config('streaming.ice_servers', [])));</script>
     <script src="{{ asset('js/webrtc-ll.js') }}?v={{ filemtime(public_path('js/webrtc-ll.js')) }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
@@ -1160,7 +1161,7 @@
                     if (!remoteVideo.srcObject) {
                         startHlsFallback();
                     }
-                }, 8000);
+                }, 5000);
             } else {
                 startHlsFallback();
             }

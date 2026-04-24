@@ -9,11 +9,8 @@ class WebRTCLowLatency {
         this.channel = null;
         this.remoteVideoElement = null;
         this.myPeerId = this._generatePeerId();
-        this.viewerReadyTimer = null;
-        this.viewerReadyDeadline = 0;
         this.handledSignalIds = new Set();
         this.useRelayForMediaSignals = true;
-        this.mediaRelayFallbackTimer = null;
         this.remoteVideoReadyBound = false;
 
         this.iceServers = window.WEBRTC_ICE_SERVERS || [
@@ -82,10 +79,9 @@ class WebRTCLowLatency {
         this.remoteVideoElement = videoElement;
 
         await this._joinSignalingChannel(streamId);
-        // Start signaling immediately; do not wait for join API.
-        this._startViewerReadyLoop();
-        this._apiCall(`/webrtc/stream/${streamId}/join-viewer`, "POST").catch(() => {});
-        this._scheduleMediaRelayFallback();
+        // Single combined request: viewer-ready signal + join-viewer in one POST.
+        // The broadcaster only needs ONE viewer-ready to start an offer.
+        this._sendViewerReadyAndJoin();
         return { success: true, mode: "webrtc" };
     }
 
@@ -123,8 +119,15 @@ class WebRTCLowLatency {
         }
 
         let envelope = rawData;
-        if (rawData.relayId && this.streamId) {
-            const res = await fetch(`/webrtc/stream/${this.streamId}/relay/${encodeURIComponent(rawData.relayId)}`, {
+        // Only fetch relay if the payload contains ONLY a relayId (i.e. SDP was too large for inline).
+        // When the server sends inline SDP, the payload already contains offer/answer/candidate data.
+        const hasRelayId = rawData.relayId || (rawData.payload && rawData.payload.relayId);
+        const hasInlineSignal = rawData.offer || rawData.answer || rawData.candidate ||
+            (rawData.payload && (rawData.payload.offer || rawData.payload.answer || rawData.payload.candidate));
+
+        if (hasRelayId && !hasInlineSignal && this.streamId) {
+            const rid = rawData.relayId || rawData.payload.relayId;
+            const res = await fetch(`/webrtc/stream/${this.streamId}/relay/${encodeURIComponent(rid)}`, {
                 method: "GET",
                 headers: {
                     "X-CSRF-TOKEN": this._getCsrfToken(),
@@ -174,7 +177,10 @@ class WebRTCLowLatency {
         }
 
         if (data.signalEvent === "broadcaster-ready") {
-            this._sendViewerReady();
+            // Broadcaster just came online; send viewer-ready if we haven't connected yet.
+            if (!this._hasConnectedPeer()) {
+                this._sendViewerReadyAndJoin();
+            }
         } else if (data.signalEvent === "webrtc-offer") {
             this._handleOffer(data).catch(console.error);
         } else if (data.signalEvent === "webrtc-ice") {
@@ -334,46 +340,28 @@ class WebRTCLowLatency {
             .join("\r\n");
     }
 
-    _startViewerReadyLoop() {
-        clearInterval(this.viewerReadyTimer);
-        this.viewerReadyDeadline = Date.now() + 12000;
-        this._sendViewerReady();
-
-        // Front-load ready signals for faster first offer on fresh joins.
-        let burstCount = 0;
-        const burstTimer = setInterval(() => {
-            if (this._hasConnectedPeer() || burstCount >= 5) {
-                clearInterval(burstTimer);
-                return;
-            }
-            burstCount += 1;
-            this._sendViewerReady();
-        }, 220);
-
-        this.viewerReadyTimer = setInterval(() => {
-            if (Date.now() > this.viewerReadyDeadline || this._hasConnectedPeer()) {
-                clearInterval(this.viewerReadyTimer);
-                this.viewerReadyTimer = null;
-                return;
-            }
-            this._sendViewerReady();
-        }, 700);
-    }
-
-    _sendViewerReady() {
-        this._sendSignal("viewer-ready", { peerId: this.myPeerId });
-    }
-
-    _scheduleMediaRelayFallback() {
-        if (this.isBroadcaster) return;
-        clearTimeout(this.mediaRelayFallbackTimer);
-        this.mediaRelayFallbackTimer = setTimeout(() => {
-            if (this._hasConnectedPeer()) {
-                return;
-            }
-            // Retry viewer-ready if offer did not arrive yet.
-            this._sendViewerReady();
-        }, 3500);
+    /**
+     * Send a single combined request: viewer-ready signal + join-viewer.
+     * This is the ONLY HTTP request the fan sends until the answer.
+     */
+    _sendViewerReadyAndJoin() {
+        const signalId = `${this.myPeerId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        // Fire the signal via HTTP (the only viewer-ready we send).
+        fetch(`/webrtc/stream/${this.streamId}/signal`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": this._getCsrfToken(),
+                "X-Requested-With": "XMLHttpRequest",
+                Accept: "application/json"
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                senderPeerId: this.myPeerId,
+                signalEvent: "viewer-ready",
+                payload: { peerId: this.myPeerId, signalId, joinViewer: true }
+            })
+        }).catch(() => {});
     }
 
     async _handleViewerReady(data) {
@@ -396,6 +384,8 @@ class WebRTCLowLatency {
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        // Wait for ICE gathering so the SDP contains all candidates (no trickle HTTP flood).
+        await this._waitForIceGathering(pc);
         this._requestVideoKeyframe(viewerPeerId);
 
         this._sendSignal("webrtc-offer", {
@@ -452,6 +442,8 @@ class WebRTCLowLatency {
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        // Wait for ICE gathering so the SDP contains all candidates.
+        await this._waitForIceGathering(pc);
 
         this._sendSignal("webrtc-answer", {
             answer: this._encodeSessionDescription(pc.localDescription),
@@ -522,13 +514,10 @@ class WebRTCLowLatency {
         });
         this.peerConnections.set(peerId, pc);
 
-        pc.onicecandidate = (event) => {
-            if (!event.candidate) return;
-            this._sendSignal("webrtc-ice", {
-                candidate: event.candidate.toJSON(),
-                targetPeerId: peerId
-            });
-        };
+        // Non-trickle ICE: do NOT send individual candidates via HTTP.
+        // Instead, we wait for ICE gathering to complete and send the full SDP
+        // with all candidates embedded. This avoids flooding the server.
+        pc.onicecandidate = () => {};
 
         if (!this.isBroadcaster) {
             pc.ontrack = (event) => {
@@ -646,28 +635,58 @@ class WebRTCLowLatency {
     }
 
     _sendSignal(signalEvent, payload = {}) {
-        const data = {
-            signalId: `${this.myPeerId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            senderPeerId: this.myPeerId,
-            signalEvent,
-            ...payload
-        };
+        const signalId = `${this.myPeerId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         // Whisper exists only on private/presence Echo channels. Public `Echo.channel()` has no whisper — use HTTP relay only.
         if (this.channel && typeof this.channel.whisper === "function") {
-            this.channel.whisper("webrtc-signal", data);
+            this.channel.whisper("webrtc-signal", {
+                signalId,
+                senderPeerId: this.myPeerId,
+                signalEvent,
+                ...payload
+            });
         }
 
         // Reliable path: relay through backend (required for public webrtc-stream.* channels).
         const relayPayload = {
             ...payload,
-            signalId: data.signalId,
+            signalId,
         };
-        this._apiCall(`/webrtc/stream/${this.streamId}/signal`, "POST", {
-            senderPeerId: this.myPeerId,
-            signalEvent,
-            payload: relayPayload
+        fetch(`/webrtc/stream/${this.streamId}/signal`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": this._getCsrfToken(),
+                "X-Requested-With": "XMLHttpRequest",
+                Accept: "application/json"
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                senderPeerId: this.myPeerId,
+                signalEvent,
+                payload: relayPayload
+            })
         }).catch(() => {});
+    }
+
+    /**
+     * Wait for ICE gathering to complete (or timeout). Once complete, pc.localDescription
+     * contains all ICE candidates embedded in the SDP — no separate trickle messages needed.
+     */
+    _waitForIceGathering(pc, timeoutMs = 500) {
+        return new Promise((resolve) => {
+            if (pc.iceGatheringState === "complete") {
+                resolve();
+                return;
+            }
+            const timer = setTimeout(resolve, timeoutMs);
+            pc.addEventListener("icegatheringstatechange", () => {
+                if (pc.iceGatheringState === "complete") {
+                    clearTimeout(timer);
+                    resolve();
+                }
+            });
+        });
     }
 
     _hasConnectedPeer() {
@@ -717,11 +736,6 @@ class WebRTCLowLatency {
     }
 
     cleanup() {
-        clearInterval(this.viewerReadyTimer);
-        this.viewerReadyTimer = null;
-        this.viewerReadyDeadline = 0;
-        clearTimeout(this.mediaRelayFallbackTimer);
-        this.mediaRelayFallbackTimer = null;
         clearTimeout(this.qualityUpgradeTimer);
         this.qualityUpgradeTimer = null;
 
