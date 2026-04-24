@@ -77,6 +77,7 @@ class WebRTCLowLatency {
         this.streamId = streamId;
         this.isBroadcaster = false;
         this.remoteVideoElement = videoElement;
+        console.log("[WebRTC-LL] joinBroadcast", { streamId, echoExists: !!window.Echo });
 
         await this._joinSignalingChannel(streamId);
         // Single combined request: viewer-ready signal + join-viewer in one POST.
@@ -103,10 +104,23 @@ class WebRTCLowLatency {
         }
 
         // Public channel (no /broadcasting/auth): works for guests and all roles while stream is live.
+        console.log("[WebRTC-LL] Subscribing to channel", `webrtc-stream.${streamId}`);
         this.channel = window.Echo.channel(`webrtc-stream.${streamId}`);
         this.channel.listen(".webrtc.signal", (data) => {
+            console.log("[WebRTC-LL] Pusher event received", data?.signalEvent, data);
             this._handleRelayedSignal(data);
         });
+
+        // Debug: log raw Pusher subscription state.
+        const pusherChannel = this.channel?.subscription;
+        if (pusherChannel) {
+            pusherChannel.bind('pusher:subscription_succeeded', () => {
+                console.log('[WebRTC-LL] Channel subscription SUCCEEDED');
+            });
+            pusherChannel.bind('pusher:subscription_error', (err) => {
+                console.error('[WebRTC-LL] Channel subscription FAILED', err);
+            });
+        }
     }
 
     _handleRelayedSignal(rawData) {
