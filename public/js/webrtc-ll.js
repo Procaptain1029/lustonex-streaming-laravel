@@ -79,9 +79,11 @@ class WebRTCLowLatency {
         this.remoteVideoElement = videoElement;
         console.log("[WebRTC-LL] joinBroadcast", { streamId, echoExists: !!window.Echo });
 
+        // IMPORTANT: wait for the Pusher channel subscription to succeed
+        // BEFORE sending viewer-ready. Otherwise the offer response is lost
+        // if the WebSocket is still connecting.
         await this._joinSignalingChannel(streamId);
-        // Single combined request: viewer-ready signal + join-viewer in one POST.
-        // The broadcaster only needs ONE viewer-ready to start an offer.
+        console.log("[WebRTC-LL] Channel ready, sending viewer-ready");
         this._sendViewerReadyAndJoin();
         return { success: true, mode: "webrtc" };
     }
@@ -111,14 +113,31 @@ class WebRTCLowLatency {
             this._handleRelayedSignal(data);
         });
 
-        // Debug: log raw Pusher subscription state.
+        // Wait for the Pusher channel subscription to be confirmed before proceeding.
+        // This prevents the race condition where viewer-ready is sent before the
+        // WebSocket is connected, causing the offer response to be lost.
         const pusherChannel = this.channel?.subscription;
         if (pusherChannel) {
-            pusherChannel.bind('pusher:subscription_succeeded', () => {
-                console.log('[WebRTC-LL] Channel subscription SUCCEEDED');
-            });
-            pusherChannel.bind('pusher:subscription_error', (err) => {
-                console.error('[WebRTC-LL] Channel subscription FAILED', err);
+            await new Promise((resolve, reject) => {
+                if (pusherChannel.subscribed) {
+                    console.log('[WebRTC-LL] Channel already subscribed');
+                    resolve();
+                    return;
+                }
+                const timeout = setTimeout(() => {
+                    console.warn('[WebRTC-LL] Channel subscription timeout, proceeding anyway');
+                    resolve();
+                }, 5000);
+                pusherChannel.bind('pusher:subscription_succeeded', () => {
+                    clearTimeout(timeout);
+                    console.log('[WebRTC-LL] Channel subscription SUCCEEDED');
+                    resolve();
+                });
+                pusherChannel.bind('pusher:subscription_error', (err) => {
+                    clearTimeout(timeout);
+                    console.error('[WebRTC-LL] Channel subscription FAILED', err);
+                    reject(new Error('Channel subscription failed'));
+                });
             });
         }
     }
