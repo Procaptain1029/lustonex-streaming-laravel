@@ -461,26 +461,26 @@
 
     /* Medium-large screens: stack brand on top, keep 5 columns */
     @media (max-width: 1280px) {
-        .footer-container {
+        .footer-v2 .footer-container {
             grid-template-columns: 1fr;
             gap: 40px;
             padding: 40px 40px;
         }
 
-        .footer-brand-section {
+        .footer-v2 .footer-brand-section {
             max-width: 100%;
             text-align: center;
         }
 
-        .footer-logo {
+        .footer-v2 .footer-logo {
             justify-content: center;
         }
 
-        .footer-social-discreet {
+        .footer-v2 .footer-social-discreet {
             justify-content: center;
         }
 
-        .footer-links-grid {
+        .footer-v2 .footer-links-grid {
             grid-template-columns: repeat(5, 1fr);
             gap: 24px;
         }
@@ -488,17 +488,17 @@
 
     /* Tablet: brand on top, 3-column link grid */
     @media (max-width: 900px) {
-        .footer-container {
+        .footer-v2 .footer-container {
             padding: 40px 30px;
             gap: 36px;
         }
 
-        .footer-links-grid {
+        .footer-v2 .footer-links-grid {
             grid-template-columns: repeat(3, 1fr);
             gap: 30px 24px;
         }
 
-        .bottom-container {
+        .footer-v2 .bottom-container {
             flex-direction: column;
             align-items: center;
             gap: 30px;
@@ -506,14 +506,14 @@
             text-align: center;
         }
 
-        .compliance-badges,
-        .payment-trust {
+        .footer-v2 .compliance-badges,
+        .footer-v2 .payment-trust {
             max-width: 100%;
             width: 100%;
             text-align: center;
         }
 
-        .payment-icons {
+        .footer-v2 .payment-icons {
             justify-content: center;
         }
     }
@@ -521,38 +521,57 @@
     /* Small tablet / large phone: 2-column link grid */
     @media (max-width: 640px) {
         .footer-v2 {
-            padding: 40px 0 0;
+            padding: 0;
         }
 
-        .footer-container {
-            padding: 32px 20px;
-            gap: 32px;
+        .footer-v2 .footer-container {
+            padding: 24px 20px;
+            gap: 24px;
         }
 
-        .footer-links-grid {
+        /* Hide logo and description, show only social icons */
+        .footer-v2 .footer-logo,
+        .footer-v2 .brand-description {
+            display: none;
+        }
+
+        .footer-v2 .footer-brand-section {
+            text-align: center;
+            max-width: 100%;
+        }
+
+        .footer-v2 .footer-social-discreet {
+            justify-content: center;
+        }
+
+        .footer-v2 .footer-links-grid {
             grid-template-columns: repeat(2, 1fr);
-            gap: 28px 20px;
+            gap: 32px 20px;
         }
 
-        .footer-column {
+        .footer-v2 .footer-column {
             text-align: center;
         }
 
-        .column-title {
-            margin-bottom: 16px;
+        .footer-v2 .column-title {
+            margin-bottom: 14px;
             font-size: 13px;
         }
 
-        .footer-list a {
+        .footer-v2 .footer-list a {
             font-size: 13px;
         }
 
-        .bottom-container {
+        .footer-v2 .footer-list li {
+            margin-bottom: 10px;
+        }
+
+        .footer-v2 .bottom-container {
             padding: 0 20px;
             gap: 24px;
         }
 
-        .visible-mobile-only {
+        .footer-v2 .visible-mobile-only {
             display: flex !important;
             justify-content: center;
         }
@@ -560,21 +579,17 @@
 
     /* Very small phone */
     @media (max-width: 400px) {
-        .footer-container {
-            padding: 24px 16px;
+        .footer-v2 .footer-container {
+            padding: 20px 16px;
         }
 
-        .footer-links-grid {
-            grid-template-columns: 1fr;
-            gap: 24px;
+        .footer-v2 .footer-links-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 28px 16px;
         }
 
-        .bottom-container {
+        .footer-v2 .bottom-container {
             padding: 0 16px;
-        }
-
-        .brand-description {
-            font-size: 13px;
         }
     }
 </style>
