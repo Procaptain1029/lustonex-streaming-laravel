@@ -20,6 +20,13 @@ return [
         'play' => 'Play',
         'pause' => 'Pause',
         'refresh' => 'Refresh Stream',
+        'add_favorite' => 'Add to Favorites',
+        'favorite_short' => 'Favorite',
+        'added_to_favorites' => 'Added to Favorites!',
+        'added_to_favorites_text' => 'You have added this model to your favorites.',
+        'removed_from_favorites' => 'Removed from Favorites',
+        'removed_from_favorites_text' => 'You have removed this model from your favorites.',
+        'favorite_error' => 'Error updating favorite',
     ],
     'tabs' => [
         'photos' => 'Photos',
@@ -116,6 +123,10 @@ return [
         'buy' => 'Buy',
         'confirm_purchase_title' => 'Confirm Recharge',
         'confirm_purchase_text' => 'Do you want to buy',
+    ],
+    'stream' => [
+        'ended_badge' => 'Stream Ended',
+        'ended_message' => 'The stream has ended. Thanks for watching!',
     ],
     'auth' => [
         'login' => 'Log In',

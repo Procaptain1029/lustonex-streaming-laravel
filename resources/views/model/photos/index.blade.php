@@ -339,9 +339,15 @@
                     <div class="sh-photo-wrapper">
                         <img src="{{ $photo->thumbnail_url }}" alt="{{ $photo->title }}" class="sh-photo-img" loading="lazy">
 
-                        <div class="sh-photo-status {{ $photo->is_public ? 'status-badge-approved' : 'status-badge-vip' }}">
-                            {{ $photo->is_public ? __('model.photos.index.status_public') : __('model.photos.index.status_vip') }}
-                        </div>
+                        @if($photo->status === 'pending')
+                            <div class="sh-photo-status status-badge-pending">
+                                <i class="fas fa-clock" style="font-size: 9px;"></i> {{ __('model.photos.index.status_pending') }}
+                            </div>
+                        @else
+                            <div class="sh-photo-status {{ $photo->is_public ? 'status-badge-approved' : 'status-badge-vip' }}">
+                                {{ $photo->is_public ? __('model.photos.index.status_public') : __('model.photos.index.status_vip') }}
+                            </div>
+                        @endif
 
                         <div class="sh-photo-actions" onclick="event.stopPropagation()">
                             <form action="{{ route('model.photos.destroy', $photo) }}" method="POST" style="display: inline;">
@@ -378,8 +384,8 @@
     <!-- Photo Modal -->
     <div id="photoModal" class="sh-modal-backdrop" onclick="closePhoto()">
         <div class="sh-modal-content" onclick="event.stopPropagation()">
-            <button class="sh-close-modal" onclick="closePhoto()">&times;</button>
-            <img id="modalImage" src="" alt="Preview" class="sh-modal-img">
+            <button class="sh-close-modal" onclick="closePhoto()"><i class="fas fa-times"></i></button>
+            <img id="modalImage" src="" alt="" class="sh-modal-img">
         </div>
     </div>
 

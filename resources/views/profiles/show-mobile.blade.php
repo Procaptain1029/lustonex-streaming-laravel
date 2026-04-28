@@ -213,6 +213,14 @@
             font-size: 26px;
             cursor: pointer;
             filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .imm-action-btn:active {
+            opacity: 0.7;
+            transition: opacity 0.1s;
         }
 
         .imm-action-item span {
@@ -231,6 +239,8 @@
             justify-content: center;
             font-size: 20px;
             box-shadow: none;
+            -webkit-tap-highlight-color: transparent;
+            border: none;
         }
 
         .imm-btn-token {
@@ -620,9 +630,12 @@
             background: #121214;
             width: 100%;
             max-width: 500px;
+            max-height: 85vh;
+            max-height: 85dvh;
+            overflow-y: auto;
             border-top-left-radius: 30px;
             border-top-right-radius: 30px;
-            padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+            padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
             animation: immSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid rgba(255, 215, 0, 0.15);
         }
@@ -900,7 +913,7 @@
             <div class="imm-right-sidebar">
                 <div class="imm-action-item">
                     <button class="imm-action-btn" onclick="{{ auth()->check() ? 'toggleFavorite(' . $model->id . ', this)' : 'openImmAuthModal(immTrans.authModalTitle, immTrans.loginToFavorite)' }}">
-                        <i class="{{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'fas fa-heart text-danger' : 'far fa-heart' }}"></i>
+                        <i class="{{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'fas fa-star' : 'far fa-star' }}" style="{{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'color: #D4AF37;' : '' }}"></i>
                     </button>
                     <span id="imm-fav-count">{{ number_format($model->favorited_by_count ?? 0) }}</span>
                 </div>
@@ -1022,7 +1035,7 @@
                         <i class="fas fa-gift"></i>
                     </button>
                     <button class="imm-action-btn" onclick="{{ auth()->check() ? 'toggleFavorite(' . $model->id . ', this)' : 'openImmAuthModal(immTrans.authModalTitle, immTrans.loginToFavorite)' }}" >
-                        <i class="{{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'fas fa-heart text-danger' : 'far fa-heart' }}"></i>
+                        <i class="{{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'fas fa-star' : 'far fa-star' }}" style="{{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'color: #D4AF37;' : '' }}"></i>
                     </button>
                     <button class="imm-video-btn" onclick="toggleImmControls()" style="background: rgba(255,255,255,0.1); width: 40px; height: 40px;">
                         <i class="fas fa-ellipsis-v"></i>
@@ -1121,6 +1134,72 @@
             // Start chat polling
             loadImmChatHistory();
             setInterval(loadImmChatHistory, 4000);
+
+            // ── Stream-Ended Detection (Echo + Polling) ──
+            const mobileStreamId = {{ $activeStream->id ?? 'null' }};
+            if (video && mobileStreamId) {
+                let mobileStreamEnded = false;
+
+                const handleMobileStreamEnded = () => {
+                    if (mobileStreamEnded) return;
+                    mobileStreamEnded = true;
+
+                    // Stop HLS
+                    if (typeof hls !== 'undefined' && hls) {
+                        try { hls.destroy(); } catch(_){}
+                        hls = null;
+                    }
+                    video.pause();
+
+                    // Hide UI overlay
+                    const uiOv = document.getElementById('immUiOverlay');
+                    if (uiOv) uiOv.style.display = 'none';
+
+                    // Show stream-ended overlay
+                    const container = document.querySelector('.imm-video-container');
+                    if (container) {
+                        const endedOverlay = document.createElement('div');
+                        endedOverlay.style.cssText = 'position:absolute;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(circle at center,#1a1a1a 0%,#000 100%);padding:2rem;';
+                        endedOverlay.innerHTML = `
+                            <div style="padding:4px;border:2px solid rgba(255,255,255,0.1);border-radius:50%;margin-bottom:1rem;">
+                                <img src="{{ $model->profile->avatar_url ?? '' }}"
+                                    onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'"
+                                    style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #fff;">
+                            </div>
+                            <div style="background:#fff;color:#000;padding:4px 12px;border-radius:20px;font-weight:800;font-size:0.7rem;text-transform:uppercase;margin-bottom:0.5rem;">
+                                {{ __('profiles.stream.ended_badge') }}
+                            </div>
+                            <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin:0;">
+                                {{ __('profiles.stream.ended_message') }}
+                            </p>
+                        `;
+                        container.appendChild(endedOverlay);
+                    }
+                };
+
+                // Echo real-time listener (instant, if available)
+                if (window.Echo) {
+                    window.Echo.channel('stream.' + mobileStreamId)
+                        .listen('.App\\Events\\StreamEnded', () => handleMobileStreamEnded());
+                }
+
+                // Polling fallback (every 10s)
+                const pollMobileStreamStatus = () => {
+                    if (mobileStreamEnded) return;
+                    fetch('/streams/' + mobileStreamId + '/status', {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin',
+                    })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(data => {
+                        if (data.status === 'ended' || data.status === 'offline') {
+                            handleMobileStreamEnded();
+                        }
+                    })
+                    .catch(() => {});
+                };
+                setInterval(pollMobileStreamStatus, 10000);
+            }
         });
 
         function loadImmChatHistory() {
@@ -1374,15 +1453,17 @@
             .then(data => {
                 if (data.success) {
                     if (data.is_favorite) {
-                        icon.classList.add('text-danger', 'fas');
+                        icon.classList.add('fas');
                         icon.classList.remove('far');
+                        icon.style.color = '#D4AF37';
                         if (countSpan) {
                             let count = parseInt(countSpan.innerText.replace(/,/g, '')) || 0;
                             countSpan.innerText = (count + 1).toLocaleString();
                         }
                     } else {
-                        icon.classList.remove('text-danger', 'fas');
+                        icon.classList.remove('fas');
                         icon.classList.add('far');
+                        icon.style.color = '';
                         if (countSpan) {
                             let count = parseInt(countSpan.innerText.replace(/,/g, '')) || 0;
                             countSpan.innerText = Math.max(0, count - 1).toLocaleString();

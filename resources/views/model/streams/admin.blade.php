@@ -95,13 +95,75 @@
         }
         
         @media (max-width: 768px) {
-            .admin-wrapper { overflow: auto; height: auto; margin: -1rem -1rem 0 -1rem; }
+            .admin-wrapper { 
+                overflow-y: auto; 
+                overflow-x: hidden;
+                height: auto; 
+                min-height: calc(100vh - 60px);
+                margin: -1rem -1rem 0 -1rem; 
+                padding: 0;
+            }
             .twitch-grid { 
                 display: flex;
                 flex-direction: column; 
                 height: auto; 
             }
-            .grid-column { height: 600px; } /* Altura fija para columnas de chat/feed en celular */
+            .grid-player {
+                border-right: none;
+                min-height: 0;
+            }
+            .player-container {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 16/9;
+                flex: none;
+                min-height: 180px;
+                max-height: 40vh;
+            }
+            .shortcuts-section {
+                height: auto;
+                min-height: 70px;
+                padding: 0.5rem;
+            }
+            .shortcut-tile {
+                width: 90px;
+                min-width: 90px;
+                height: 70px;
+            }
+            .tile-text { font-size: 0.7rem; }
+            .grid-column { height: 280px; }
+            .top-stats-bar {
+                flex-wrap: wrap;
+                height: auto;
+                padding: 0.4rem 0.5rem;
+                gap: 0.3rem;
+            }
+            .top-stats-group:last-child {
+                display: none;
+            }
+            .column-header {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.8rem;
+            }
+            .stat-item { font-size: 0.75rem; gap: 0.3rem; }
+        }
+
+        /* Landscape mobile — maximize player, minimize chrome */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .admin-wrapper {
+                min-height: 100vh;
+            }
+            .player-container {
+                max-height: 55vh;
+                min-height: 150px;
+            }
+            .shortcuts-section {
+                min-height: 60px;
+            }
+            .shortcut-tile {
+                height: 60px;
+            }
+            .grid-column { height: 220px; }
         }
 
         /* COLUMNS */
@@ -757,6 +819,13 @@
 
                     if (placeholder) placeholder.style.display = 'none';
                     if (video) video.style.display = '';
+
+                    // Update badge from "Preparing" to "Live"
+                    const badge = document.querySelector('.player-overlay .badge-live');
+                    if (badge) {
+                        badge.textContent = ADMIN_BADGE_LIVE;
+                        badge.style.background = '';
+                    }
                 } catch (error) {
                     console.error('WebRTC start failed:', error);
                     adminWebRtcRunning = false;
@@ -1250,6 +1319,10 @@
 
                 if (data.status === 'pending') {
                     document.getElementById('streamDuration').innerText = '--:--';
+                    // Still update viewer count even while pending (WebRTC viewers may join before status flips to live)
+                    if (data.viewers_count !== undefined) {
+                        document.getElementById('viewerCount').innerText = data.viewers_count.toLocaleString();
+                    }
                     adminStreamPollStatus = 'pending';
                     return;
                 }
@@ -1258,6 +1331,14 @@
                     const placeholderVisible = ph && window.getComputedStyle(ph).display !== 'none';
                     if (ADMIN_BROADCAST_IS_OBS && (adminStreamPollStatus === 'pending' || placeholderVisible)) {
                         activateAdminObsPreviewFromPoll();
+                    }
+                    // Always update badge when server confirms live/paused
+                    if (adminStreamPollStatus === 'pending') {
+                        const liveBadge = document.querySelector('.player-overlay .badge-live');
+                        if (liveBadge) {
+                            liveBadge.textContent = ADMIN_BADGE_LIVE;
+                            liveBadge.style.background = '';
+                        }
                     }
                     adminStreamPollStatus = data.status;
                     document.getElementById('viewerCount').innerText = data.viewers_count.toLocaleString();
@@ -1423,6 +1504,20 @@
             // Auto-scroll chat al cargar
             const chat = document.getElementById('chatContainer');
             if(chat) chat.scrollTop = chat.scrollHeight;
+
+            // Force re-layout on orientation change so controls render immediately
+            const forceRelayout = () => {
+                const wrapper = document.querySelector('.admin-wrapper');
+                if (wrapper) {
+                    wrapper.style.display = 'none';
+                    wrapper.offsetHeight; // trigger reflow
+                    wrapper.style.display = '';
+                }
+            };
+            if (screen.orientation) {
+                screen.orientation.addEventListener('change', forceRelayout);
+            }
+            window.addEventListener('orientationchange', () => setTimeout(forceRelayout, 150));
         });
     </script>
 @endsection

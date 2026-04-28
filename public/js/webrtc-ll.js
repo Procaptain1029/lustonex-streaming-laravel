@@ -581,11 +581,13 @@ class WebRTCLowLatency {
 
         if (!this.isBroadcaster) {
             pc.ontrack = (event) => {
-                if (!this.remoteVideoElement || !event.streams[0]) return;
-                this.remoteVideoElement.srcObject = event.streams[0];
+                if (!this.remoteVideoElement) return;
+                const stream = event.streams[0] || new MediaStream([event.track]);
+                this.remoteVideoElement.srcObject = stream;
                 this.remoteVideoElement.muted = true;
                 this._bindRemoteVideoReadySignals(this.remoteVideoElement);
                 this.remoteVideoElement.play().catch(() => {});
+                console.log("[WebRTC-LL] ontrack: srcObject set, dispatching webrtc-peer-connected");
                 window.dispatchEvent(new CustomEvent("webrtc-peer-connected"));
             };
         }

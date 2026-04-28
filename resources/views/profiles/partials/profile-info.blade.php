@@ -340,7 +340,7 @@
                         </span>
                     @endif
                     <span class="badge-premium-sh sh-coral">
-                        <i class="far fa-heart"></i> {{ __('profiles.badges.favorite') }}
+                        <i class="far fa-star"></i> {{ __('profiles.badges.favorite') }}
                     </span>
                 </div>
 
@@ -356,7 +356,7 @@
 
                     
                     <div class="heart-stat">
-                        <i class="fas fa-heart"></i>
+                        <i class="fas fa-star" style="color: #D4AF37;"></i>
                         <span>{{ $model->favorited_by_count ?? 0 }}</span>
                     </div>
                 </div>
@@ -425,8 +425,9 @@
                     
                     <button
                         class="btn-profile btn-heart {{ auth()->check() && auth()->user()->hasFavorite($model->id) ? 'active' : '' }}"
-                        onclick="toggleFavorite({{ $model->id }}, this)">
-                        <i class="fas fa-heart"></i>
+                        onclick="toggleFavorite({{ $model->id }}, this)"
+                        title="{{ __('profiles.actions.add_favorite') }}">
+                        <i class="fas fa-star"></i> <span class="btn-fav-text">{{ __('profiles.actions.favorite_short') }}</span>
                     </button>
                 @endif
             </div>

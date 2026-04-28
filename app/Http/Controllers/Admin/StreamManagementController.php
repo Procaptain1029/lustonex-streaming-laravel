@@ -69,11 +69,15 @@ class StreamManagementController extends Controller
     
     public function end(Stream $stream)
     {
-        if ($stream->status === 'live') {
+        if (in_array($stream->status, ['live', 'paused'], true)) {
             $stream->update([
                 'status' => 'ended',
                 'ended_at' => now(),
             ]);
+
+            $stream->user->profile()->update(['is_streaming' => false]);
+
+            event(new \App\Events\StreamEnded($stream));
             
             return back()->with('success', __('admin.flash.streams.ended'));
         }

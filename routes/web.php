@@ -342,6 +342,8 @@ Route::middleware(['web', 'auth'])->prefix('webrtc/stream/{streamId}')->group(fu
     Route::post('/stop-broadcast', [StreamingController::class, 'stopBroadcast']);
 });
 
+// Public stream status check (fan-side polling for stream-ended detection)
+Route::get('/streams/{stream}/status', [StreamingController::class, 'getStreamStatus'])->name('streams.public-status');
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');

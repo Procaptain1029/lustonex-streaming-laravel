@@ -1152,16 +1152,21 @@
                     }
                     remoteVideo.muted = true;
                     remoteVideo.play().catch(() => {});
+                    const noVid = document.getElementById('no-video-message');
+                    if (noVid) noVid.style.display = 'none';
                 }, { once: true });
                 window.addEventListener('webrtc-video-ready', () => {
                     remoteVideo.muted = true;
                     remoteVideo.play().catch(() => {});
                 }, { once: true });
-                setTimeout(() => {
-                    if (!remoteVideo.srcObject) {
-                        startHlsFallback();
-                    }
-                }, 5000);
+                // Only fall back to HLS for OBS streams; browser-mode has no HLS files.
+                if (isObsStream) {
+                    setTimeout(() => {
+                        if (!remoteVideo.srcObject) {
+                            startHlsFallback();
+                        }
+                    }, 5000);
+                }
             } else {
                 startHlsFallback();
             }
@@ -1170,6 +1175,66 @@
 
             // Update viewer count periodically
             setInterval(updateViewerCount, 10000);
+
+            // ── Stream-Ended Detection (Echo + Polling) ──
+            let dedicatedStreamEnded = false;
+
+            const handleDedicatedStreamEnded = () => {
+                if (dedicatedStreamEnded) return;
+                dedicatedStreamEnded = true;
+
+                // Stop HLS
+                if (hls) { try { hls.destroy(); } catch(_){} hls = null; }
+
+                // Stop WebRTC tracks
+                try {
+                    if (remoteVideo.srcObject) {
+                        remoteVideo.srcObject.getTracks().forEach(t => t.stop());
+                        remoteVideo.srcObject = null;
+                    }
+                } catch(_){}
+                remoteVideo.pause();
+
+                // Show ended overlay over the video container
+                const videoContainer = document.querySelector('.video-container');
+                if (videoContainer) {
+                    const endedOverlay = document.createElement('div');
+                    endedOverlay.style.cssText = 'position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(circle at center,#1a1a1a 0%,#000 100%);padding:2rem;';
+                    endedOverlay.innerHTML = `
+                        <div style="background:#fff;color:#000;padding:6px 16px;border-radius:20px;font-weight:800;font-size:0.8rem;text-transform:uppercase;margin-bottom:1rem;">
+                            {{ __('profiles.stream.ended_badge') }}
+                        </div>
+                        <p style="color:rgba(255,255,255,0.6);font-size:1rem;margin:0;">
+                            {{ __('profiles.stream.ended_message') }}
+                        </p>
+                    `;
+                    videoContainer.style.position = 'relative';
+                    videoContainer.appendChild(endedOverlay);
+                }
+            };
+
+            // Echo listener (instant — stream-viewer.js loads Echo)
+            if (window.Echo) {
+                window.Echo.channel('stream.' + streamId)
+                    .listen('.App\\Events\\StreamEnded', () => handleDedicatedStreamEnded());
+            }
+
+            // Polling fallback (every 10s)
+            const pollDedicatedStreamStatus = () => {
+                if (dedicatedStreamEnded) return;
+                fetch('/streams/' + streamId + '/status', {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                })
+                .then(r => r.ok ? r.json() : Promise.reject())
+                .then(data => {
+                    if (data.status === 'ended' || data.status === 'offline') {
+                        handleDedicatedStreamEnded();
+                    }
+                })
+                .catch(() => {});
+            };
+            setInterval(pollDedicatedStreamStatus, 10000);
         }
 
         function updateViewerCount() {

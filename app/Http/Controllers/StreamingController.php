@@ -15,6 +15,18 @@ class StreamingController extends Controller
 {
 
     /**
+     * Lightweight public endpoint: returns only the stream status.
+     * Used by the fan-side polling to detect when a stream ends.
+     */
+    public function getStreamStatus(Stream $stream)
+    {
+        return response()->json([
+            'stream_id' => $stream->id,
+            'status' => $stream->status,
+        ]);
+    }
+
+    /**
      * JSON for the authenticated model's stream admin dashboard (session auth; includes pending).
      */
     public function getStreamInfoForDashboard(Stream $stream)

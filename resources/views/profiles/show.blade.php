@@ -599,7 +599,7 @@
         .pause-media {
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            object-fit: cover;
         }
 
         /* Player Overlay Actions */
@@ -1366,9 +1366,19 @@
             color: black;
         }
 
+        .btn-heart.active {
+            background: rgba(212, 175, 55, 0.15) !important;
+            border-color: rgba(212, 175, 55, 0.5) !important;
+        }
+
         .btn-heart.active i {
-            color: #ef4444 !important;
-            filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5));
+            color: #D4AF37 !important;
+            filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.5));
+        }
+
+        .btn-fav-text {
+            font-size: 0.8rem;
+            font-weight: 600;
         }
 
         /* Modal Tip Premium */
@@ -1390,9 +1400,21 @@
             border-radius: 32px;
             width: 100%;
             max-width: 480px;
+            max-height: 90vh;
+            max-height: 90dvh;
+            overflow-y: auto;
             padding: 2.5rem;
             position: relative;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (max-width: 768px) {
+            .modal-tip-content {
+                padding: 1.5rem;
+                border-radius: 24px;
+                max-height: 85vh;
+                max-height: 85dvh;
+            }
         }
 
         /* Sidebar Tipping View */
@@ -2389,6 +2411,7 @@
                             hls = null;
                         }
                         tryPlay();
+                        markVideoReady();
                     }, { once: true });
 
                     window.addEventListener('webrtc-video-ready', () => {
@@ -2397,13 +2420,114 @@
                         markVideoReady();
                     }, { once: true });
 
-                    setTimeout(() => {
-                        if (!video.srcObject) {
-                            startHlsFallback();
+                    // For browser-mode WebRTC there are no HLS files, so
+                    // falling back early only interferes with the ongoing
+                    // ICE negotiation (TURN relay can take >5 s).
+                    // Only fall back to HLS for non-browser streams.
+                    if (isObsStream) {
+                        setTimeout(() => {
+                            if (!video.srcObject) {
+                                startHlsFallback();
+                            }
+                        }, 5000);
+                    }
+
+                    // Robust fallback: poll video element state every 1s
+                    // in case WebRTC events are missed or swallowed.
+                    const webrtcReadyPoll = setInterval(() => {
+                        if (video.srcObject && video.readyState >= 2) {
+                            clearInterval(webrtcReadyPoll);
+                            hideLoadingOverlay();
+                            setModeBadge('WebRTC (Low Latency)', '#15803d');
                         }
-                    }, 5000);
+                    }, 1000);
                 } else {
                     startHlsFallback();
+                }
+
+                // ── Stream-Ended Detection (Echo + Polling) ──
+                if (streamId) {
+                    let streamEnded = false;
+
+                    const handleStreamEnded = () => {
+                        if (streamEnded) return;
+                        streamEnded = true;
+
+                        // Stop HLS
+                        if (hls) { try { hls.destroy(); } catch(_){} hls = null; }
+
+                        // Stop WebRTC tracks
+                        try {
+                            if (video.srcObject) {
+                                video.srcObject.getTracks().forEach(t => t.stop());
+                                video.srcObject = null;
+                            }
+                        } catch(_){}
+
+                        video.pause();
+
+                        // Hide player elements
+                        video.style.display = 'none';
+                        if (modeBadge) modeBadge.style.display = 'none';
+                        hideLoadingOverlay();
+
+                        // Hide floating action buttons (tip/roulette)
+                        const floatingActions = document.querySelector('.player-floating-actions');
+                        if (floatingActions) floatingActions.style.display = 'none';
+
+                        // Hide pause overlay if visible
+                        const pauseOv = document.querySelector('.pause-overlay');
+                        if (pauseOv) pauseOv.style.display = 'none';
+
+                        // Hide custom controls
+                        const customControls = document.querySelector('.player-custom-controls');
+                        if (customControls) customControls.style.display = 'none';
+
+                        // Build and show offline overlay
+                        const playerRatio = document.querySelector('.player-aspect-ratio');
+                        if (playerRatio) {
+                            const offlineEl = document.createElement('div');
+                            offlineEl.className = 'offline-placeholder';
+                            offlineEl.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(circle at center,#1a1a1a 0%,#000 100%);z-index:40;padding:2rem;';
+                            offlineEl.innerHTML = `
+                                <div style="padding:4px;border:2px solid rgba(255,255,255,0.1);border-radius:50%;margin-bottom:1rem;">
+                                    <img src="{{ $model->profile->avatar_url ?? '' }}"
+                                        onerror="this.onerror=null;this.src='{{ asset('images/placeholder-avatar.svg') }}'"
+                                        style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #fff;">
+                                </div>
+                                <div style="background:#fff;color:#000;padding:4px 12px;border-radius:20px;font-weight:800;font-size:0.7rem;text-transform:uppercase;margin-bottom:0.5rem;">
+                                    {{ __('profiles.stream.ended_badge') }}
+                                </div>
+                                <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin:0;">
+                                    {{ __('profiles.stream.ended_message') }}
+                                </p>
+                            `;
+                            playerRatio.appendChild(offlineEl);
+                        }
+                    };
+
+                    // Echo real-time listener (instant)
+                    if (window.Echo) {
+                        window.Echo.channel('stream.' + streamId)
+                            .listen('.App\\Events\\StreamEnded', () => handleStreamEnded());
+                    }
+
+                    // Polling fallback (every 10s)
+                    const pollStreamStatus = () => {
+                        if (streamEnded) return;
+                        fetch('/streams/' + streamId + '/status', {
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            credentials: 'same-origin',
+                        })
+                        .then(r => r.ok ? r.json() : Promise.reject())
+                        .then(data => {
+                            if (data.status === 'ended' || data.status === 'offline') {
+                                handleStreamEnded();
+                            }
+                        })
+                        .catch(() => {});
+                    };
+                    setInterval(pollStreamStatus, 10000);
                 }
             }
 
@@ -2472,8 +2596,8 @@
                             btn.classList.add('active');
                             Swal.fire({
                                 icon: 'success',
-                                title: '¡Agregado a favoritos!',
-                                text: 'Has agregado a esta modelo a tus favoritos.',
+                                title: '{{ __("profiles.actions.added_to_favorites") }}',
+                                text: '{{ __("profiles.actions.added_to_favorites_text") }}',
                                 background: '#1a1a1e',
                                 color: '#fff',
                                 timer: 3000,
@@ -2484,8 +2608,8 @@
                             btn.classList.remove('active');
                             Swal.fire({
                                 icon: 'info',
-                                title: 'Eliminado de favoritos',
-                                text: 'Has eliminado a esta modelo de tus favoritos.',
+                                title: '{{ __("profiles.actions.removed_from_favorites") }}',
+                                text: '{{ __("profiles.actions.removed_from_favorites_text") }}',
                                 background: '#1a1a1e',
                                 color: '#fff',
                                 timer: 3000,
@@ -2497,7 +2621,7 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'Error',
-                            text: data.message || 'Error al actualizar favorito',
+                            text: data.message || '{{ __("profiles.actions.favorite_error") }}',
                             background: '#1a1a1e',
                             color: '#fff',
                             confirmButtonColor: '#d4af37'
@@ -2508,8 +2632,8 @@
                     console.error('Error:', error);
                     Swal.fire({
                         icon: 'error',
-                        title: 'Error de conexión',
-                        text: 'No se pudo contactar con el servidor.',
+                        title: 'Error',
+                        text: '{{ __("profiles.actions.favorite_error") }}',
                         background: '#1a1a1e',
                         color: '#fff',
                         confirmButtonColor: '#d4af37'

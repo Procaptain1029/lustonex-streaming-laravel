@@ -15,8 +15,7 @@
                     <img src="{{ $photo->url }}" style="filter: blur(40px);">
                     <div class="lock-overlay">
                         <i class="fas fa-lock fa-2x"></i>
-                        <span style="font-weight: 800; font-size: 0.8rem; text-transform: uppercase;">Suscríbete para ver el
-                            contenido premium</span>
+                        <span style="font-weight: 800; font-size: 0.8rem; text-transform: uppercase;">{{ __('profiles.content.subscribe_to_view') }}</span>
                     </div>
                 @endif
 

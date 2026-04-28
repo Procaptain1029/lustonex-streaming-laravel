@@ -20,6 +20,13 @@ return [
         'play' => 'Reproduzir',
         'pause' => 'Pausar',
         'refresh' => 'Recarregar Stream',
+        'add_favorite' => 'Adicionar aos Favoritos',
+        'favorite_short' => 'Favorita',
+        'added_to_favorites' => 'Adicionada aos Favoritos!',
+        'added_to_favorites_text' => 'Você adicionou esta modelo aos seus favoritos.',
+        'removed_from_favorites' => 'Removida dos Favoritos',
+        'removed_from_favorites_text' => 'Você removeu esta modelo dos seus favoritos.',
+        'favorite_error' => 'Erro ao atualizar favorito',
     ],
     'tabs' => [
         'photos' => 'Fotos',
@@ -116,6 +123,10 @@ return [
         'buy' => 'Comprar',
         'confirm_purchase_title' => 'Confirmar Recarga',
         'confirm_purchase_text' => 'Você deseja comprar',
+    ],
+    'stream' => [
+        'ended_badge' => 'Transmissão Encerrada',
+        'ended_message' => 'A transmissão terminou. Obrigado por assistir!',
     ],
     'auth' => [
         'login' => 'Entrar',
